@@ -35,9 +35,7 @@ def _binarize_two_class(y_p):
 
 def _get_prediction(outputs):
     """Checks if multiple outputs were provided, and selects"""
-    if isinstance(outputs, (list, tuple)):
-        return outputs[0]
-    return outputs
+    return outputs[0] if isinstance(outputs, (list, tuple)) else outputs
 
 
 def dn3_sklearn_metric(func):

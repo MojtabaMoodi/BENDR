@@ -35,7 +35,7 @@ def get_ds_added_metrics(ds_name, metrics_config):
     Given the name of a dataset, and name of metrics config file, returns all additional metrics needed,
     the metric to retain the best validation instance of and the chance-level threshold of this metric.
     """
-    metrics = dict()
+    metrics = {}
     retain_best = 'Accuracy'
     chance_level = 0.5
 
@@ -61,9 +61,11 @@ def get_ds(name, ds):
 def get_lmoso_iterator(name, ds):
     dataset = get_ds(name, ds)
     specific_test = ds.test_subjects if hasattr(ds, 'test_subjects') else None
-    iterator = dataset.lmso(ds.folds, test_splits=specific_test) \
-        if hasattr(ds, 'folds') else dataset.loso(test_person_id=specific_test)
-    return iterator
+    return (
+        dataset.lmso(ds.folds, test_splits=specific_test)
+        if hasattr(ds, 'folds')
+        else dataset.loso(test_person_id=specific_test)
+    )
 
 
 # See - https://discuss.pytorch.org/t/how-to-debug-causes-of-gpu-memory-leaks/6741

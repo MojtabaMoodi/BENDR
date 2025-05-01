@@ -105,7 +105,7 @@ def make_epochs_from_raw(raw: mne.io.Raw, tmin, tlen, event_ids=None, baseline=N
             events = mne.find_events(raw)
             events = events[[i for i in range(len(events)) if events[i, -1] in event_ids.keys()], :]
     except ValueError as e:
-        raise DN3ConfigException(*e.args)
+        raise DN3ConfigException(*e.args) from e
 
     return mne.Epochs(raw, events, tmin=tmin, tmax=tmin + tlen - 1 / sfreq, preload=True, decim=decim,
                       baseline=baseline, reject_by_annotation=drop_bad)
@@ -118,7 +118,7 @@ def skip_inds_from_bad_spans(epochs: mne.Epochs, bad_spans: list):
     start_times = epochs.events[:, 0] / epochs.info['sfreq']
     end_times = start_times + epochs.tmax - epochs.tmin
 
-    skip_inds = list()
+    skip_inds = []
     for i, (start, end) in enumerate(zip(start_times, end_times)):
         for bad_start, bad_end in bad_spans:
             if bad_start <= start < bad_end or bad_start < end <= bad_end:
