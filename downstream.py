@@ -38,7 +38,7 @@ if __name__ == '__main__':
     import sys
     # If no args are provided (e.g. during VS code debugging), set default args
     if len(sys.argv) == 1:
-        sys.argv += ['BENDR', '--ds-config', 'configs/downstream.yml']
+        sys.argv += ['linear', '--ds-config', 'configs/downstream.yml']
 
     args = parser.parse_args()
     experiment = ExperimentConfig(args.ds_config)

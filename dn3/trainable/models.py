@@ -43,7 +43,8 @@ class DN3BaseModel(nn.Module):
         return deepcopy(self)
 
     def load(self, filename, strict=True):
-        state_dict = torch.load(filename)
+        map_location = None if torch.cuda.is_available() else torch.device("cpu")
+        state_dict = torch.load(filename, map_location=map_location)
         self.load_state_dict(state_dict, strict=strict)
 
     def save(self, filename):
@@ -166,7 +167,8 @@ class Classifier(DN3BaseModel):
         raise NotImplementedError
 
     def load(self, filename, include_classifier=False, freeze_features=True):
-        state_dict = torch.load(filename)
+        map_location = None if torch.cuda.is_available() else torch.device("cpu")
+        state_dict = torch.load(filename, map_location=map_location)
         if not include_classifier:
             for key in [k for k in state_dict.keys() if 'classifier' in k]:
                 state_dict.pop(key)

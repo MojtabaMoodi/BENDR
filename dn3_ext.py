@@ -471,7 +471,8 @@ class EncodingAugment(nn.Module):
         return x
 
     def init_from_contextualizer(self, filename):
-        state_dict = torch.load(filename)
+        map_location = None if torch.cuda.is_available() else torch.device("cpu")
+        state_dict = torch.load(filename, map_location=map_location)
         self.load_state_dict(state_dict, strict=False)
         for param in self.parameters():
             param.requires_grad = False

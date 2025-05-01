@@ -55,7 +55,8 @@ class TVector(Classifier):
             self.classifier = lambda x: x
 
     def load(self, filename, include_classifier=False, freeze_features=True):
-        state_dict = torch.load(filename)
+        map_location = None if torch.cuda.is_available() else torch.device("cpu")
+        state_dict = torch.load(filename, map_location=map_location)
         if not include_classifier:
             for key in [k for k in state_dict.keys() if 'classifier' in k]:
                 state_dict.pop(key)
