@@ -67,7 +67,11 @@ class BaseProcess(object):
         assert isinstance(cuda, str)
         self.cuda = cuda
         self.device = torch.device(cuda)
-        self._eval_metrics = list() if evaluation_only_metrics is None else list(evaluation_only_metrics).copy()
+        self._eval_metrics = (
+            []
+            if evaluation_only_metrics is None
+            else list(evaluation_only_metrics).copy()
+        )
         self.metrics = OrderedDict()
         if metrics is not None:
             if isinstance(metrics, (list, tuple)):
@@ -79,10 +83,13 @@ class BaseProcess(object):
         self.build_network(**kwargs)
         new_members = set(self.__dict__.keys()).difference(_before_members)
         self._training = False
-        self._trainables = list()
+        self._trainables = []
         for member in new_members:
             if isinstance(self.__dict__[member], (torch.nn.Module, torch.Tensor)):
-                if not (isinstance(self.__dict__[member], torch.Tensor) and not self.__dict__[member].requires_grad):
+                if (
+                    not isinstance(self.__dict__[member], torch.Tensor)
+                    or self.__dict__[member].requires_grad
+                ):
                     self._trainables.append(member)
                 self.__dict__[member] = self.__dict__[member].to(self.device)
 
@@ -94,8 +101,8 @@ class BaseProcess(object):
         self.lr = lr
         self.weight_decay = l2_weight_decay
 
-        self._batch_transforms = list()
-        self._eval_transforms = list()
+        self._batch_transforms = []
+        self._eval_transforms = []
 
     def set_optimizer(self, optimizer):
         assert isinstance(optimizer, torch.optim.Optimizer)
@@ -121,8 +128,7 @@ class BaseProcess(object):
             if scheduler.lower() == 'constant':
                 scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lambda e: 1.0)
             else:
-                raise ValueError("Scheduler {} is not supported.".format(scheduler))
-        # This is the most common one that needs this, force this to be true
+                raise ValueError(f"Scheduler {scheduler} is not supported.")
         elif isinstance(scheduler, torch.optim.lr_scheduler.OneCycleLR):
             self.scheduler_after_batch = True
         else:
@@ -143,7 +149,7 @@ class BaseProcess(object):
                 # https://stackoverflow.com/questions/1006289/how-to-find-out-the-number-of-cpus-using-python
                 m = re.search(r'(?m)^Cpus_allowed:\s*(.*)$',
                               open('/proc/self/status').read())
-                nw = bin(int(m.group(1).replace(',', ''), 16)).count('1')
+                nw = bin(int(m[1].replace(',', ''), 16)).count('1')
                 # Cap the number of workers at 6 (actually 4) to avoid pummeling disks too hard
                 nw = min(num_worker_cap, nw)
             except FileNotFoundError:
@@ -153,7 +159,7 @@ class BaseProcess(object):
             # 0 workers means not extra processes are spun up
             nw = 2
         loader_kwargs.setdefault('num_workers', int(nw - 2))
-        print("Loading data with {} additional workers".format(loader_kwargs['num_workers']))
+        print(f"Loading data with {loader_kwargs['num_workers']} additional workers")
         return loader_kwargs
 
     def _get_batch(self, iterator):
@@ -172,8 +178,8 @@ class BaseProcess(object):
             self._eval_transforms.append(transform)
 
     def clear_batch_transforms(self):
-        self._batch_transforms = list()
-        self._eval_transforms = list()
+        self._batch_transforms = []
+        self._eval_transforms = []
 
     def build_network(self, **kwargs):
         """
@@ -253,8 +259,7 @@ class BaseProcess(object):
                 continue
             try:
                 metrics[met_name] = met_fn(inputs, outputs)
-            # I know its super broad, but basically if metrics fail during training, I want to just ignore them...
-            except:
+            except Exception:
                 continue
         return metrics
 
@@ -331,8 +336,8 @@ class BaseProcess(object):
         pbar = tqdm.trange(len(dataset), desc="Predicting")
         data_iterator = iter(dataset)
 
-        inputs = list()
-        outputs = list()
+        inputs = []
+        outputs = []
 
         with torch.no_grad():
             for iteration in pbar:
@@ -513,8 +518,8 @@ class BaseProcess(object):
                                                     last_epoch=last_epoch_workaround)
             )
 
-        validation_log = list()
-        train_log = list()
+        validation_log = []
+        train_log = []
         self.best_metric = None
         best_model = self.save_best()
 
@@ -524,12 +529,11 @@ class BaseProcess(object):
         def update_metrics(new_metrics: dict, iterations):
             if len(metrics) == 0:
                 return metrics.update(new_metrics)
-            else:
-                for m in new_metrics:
-                    try:
-                        metrics[m] = (metrics[m] * (iterations - 1) + new_metrics[m]) / iterations
-                    except KeyError:
-                        metrics[m] = new_metrics[m]
+            for m in new_metrics:
+                try:
+                    metrics[m] = (metrics[m] * (iterations - 1) + new_metrics[m]) / iterations
+                except KeyError:
+                    metrics[m] = new_metrics[m]
 
         def print_training_metrics(epoch, iteration=None):
             if iteration is not None:
@@ -578,7 +582,7 @@ class BaseProcess(object):
                     metrics = OrderedDict()
 
                 if isinstance(validation_interval, int) and (iteration % validation_interval == 0)\
-                        and validation_dataset is not None:
+                                and validation_dataset is not None:
                     _m = _validation(epoch, iteration)
                     best_model = self._retain_best(best_model, _m, retain_best)
 
@@ -725,16 +729,16 @@ class StandardClassification(BaseProcess):
         loader_kwargs = self._dataloader_args(dataset, training=training, **loader_kwargs)
 
         if training and loader_kwargs.get('sampler', None) is None and loader_kwargs.get('balance_method', None) \
-                is not None:
+                    is not None:
             method = loader_kwargs.pop('balance_method')
             assert method.lower() in self.BALANCE_METHODS
             if not hasattr(dataset, 'get_targets'):
-                print("Failed to create dataloader with {} balancing. {} does not support `get_targets()`.".format(
-                    method, dataset
-                ))
+                print(
+                    f"Failed to create dataloader with {method} balancing. {dataset} does not support `get_targets()`."
+                )
             elif method.lower() != 'ldam':
                 sampler = balanced_undersampling(dataset) if method.lower() == 'undersample' \
-                    else balanced_oversampling(dataset)
+                        else balanced_oversampling(dataset)
                 # Shuffle is implied by the balanced sampling
                 # loader_kwargs['shuffle'] = None
                 loader_kwargs['sampler'] = sampler
@@ -830,7 +834,7 @@ def create_ldam_loss(training_dataset):
 
 
 def _make_span_from_seeds(seeds, span, total=None):
-    inds = list()
+    inds = []
     for seed in seeds:
         for i in range(seed, seed + span):
             if total is not None and i >= total:
@@ -874,10 +878,7 @@ class BendingCollegeWav2Vec(BaseProcess):
 
     def description(self, sequence_len):
         encoded_samples = self._enc_downsample(sequence_len)
-        desc = "{} samples | mask span of {} at a rate of {} => E[masked] ~= {}".format(
-            encoded_samples, self.mask_span, self.mask_rate,
-            int(encoded_samples * self.mask_rate * self.mask_span))
-        return desc
+        return f"{encoded_samples} samples | mask span of {self.mask_span} at a rate of {self.mask_rate} => E[masked] ~= {int(encoded_samples * self.mask_rate * self.mask_span)}"
 
     def _generate_negatives(self, z):
         """Generate negative samples to compare each sequence location against"""

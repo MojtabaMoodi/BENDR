@@ -1,7 +1,7 @@
 import mne
 import torch
 
-from collections import Iterable
+from collections.abc import Iterable
 from torch.utils.data.dataset import random_split
 from random import seed as py_seed
 from numpy.random import seed as np_seed
