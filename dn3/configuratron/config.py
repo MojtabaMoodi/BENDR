@@ -98,7 +98,9 @@ class ExperimentConfig:
         working_config = self._original_config.copy()
 
         if 'Configuratron' not in working_config.keys():
-            raise DN3ConfigException("Toplevel `Configuratron` not found in: {}".format(config_filename))
+            raise DN3ConfigException(
+                f"Toplevel `Configuratron` not found in: {config_filename}"
+            )
         if 'datasets' not in working_config.keys():
             raise DN3ConfigException("`datasets` not found in {}".format([k.lower() for k in
                                                                           working_config.keys()]))
@@ -110,7 +112,7 @@ class ExperimentConfig:
         usable_datasets = list(ds_entries.keys())
 
         if self.experiment is None:
-            self._make_deep1010 = dict()
+            self._make_deep1010 = {}
             self.global_samples = None
             self.global_sfreq = None
             return_trial_ids = False
@@ -118,9 +120,9 @@ class ExperimentConfig:
             relative_directory = None
         else:
             # If not None, will be used
-            self._make_deep1010 = self.experiment.get('deep1010', dict())
+            self._make_deep1010 = self.experiment.get('deep1010', {})
             if isinstance(self._make_deep1010, bool):
-                self._make_deep1010 = dict() if self._make_deep1010 else None
+                self._make_deep1010 = {} if self._make_deep1010 else None
             self.global_samples = self.experiment.get('samples', None)
             self.global_sfreq = self.experiment.get('sfreq', None)
             usable_datasets = self.experiment.get('use_only', usable_datasets)
@@ -128,17 +130,17 @@ class ExperimentConfig:
             return_trial_ids = self.experiment.get('trial_ids', False)
             relative_directory = self.experiment.get('relative_directory', None)
 
-        self.datasets = dict()
-        for i, name in enumerate(usable_datasets):
+        self.datasets = {}
+        for name in usable_datasets:
             if name in ds_entries.keys():
                 self.datasets[name] = DatasetConfig(name, ds_entries[name], deep1010=self._make_deep1010,
                                                     samples=self.global_samples, sfreq=self.global_sfreq,
                                                     preload=preload, return_trial_ids=return_trial_ids,
                                                     relative_directory=relative_directory)
             else:
-                raise DN3ConfigException("Could not find {} in datasets".format(name))
+                raise DN3ConfigException(f"Could not find {name} in datasets")
 
-        print("Configuratron found {} datasets.".format(len(self.datasets), "s" if len(self.datasets) > 0 else ""))
+        print(f"Configuratron found {len(self.datasets)} datasets.")
 
         if adopt_auxiliaries:
             _adopt_auxiliaries(self, working_config)
@@ -215,10 +217,10 @@ class DatasetConfig:
             self.events = OrderedDict(self.events)
         self.force_label = get_pop('force_label', False)
         self.chunk_duration = get_pop('chunk_duration')
-        self.rename_channels = get_pop('rename_channels', dict())
+        self.rename_channels = get_pop('rename_channels', {})
         if not isinstance(self.rename_channels, dict):
             raise DN3ConfigException("Renamed channels must map new values to old values.")
-        self.exclude_channels = get_pop('exclude_channels', list())
+        self.exclude_channels = get_pop('exclude_channels', [])
         if not isinstance(self.exclude_channels, list):
             raise DN3ConfigException("Excluded channels must be in a list.")
 
@@ -236,13 +238,13 @@ class DatasetConfig:
             self.preload = True
         self.stride = get_pop('stride', 1)
         self.extensions = get_pop('file_extensions', list(_SUPPORTED_EXTENSIONS.keys()))
-        self.exclude_people = get_pop('exclude_people', list())
-        self.exclude_sessions = get_pop('exclude_sessions', list())
-        self.exclude = get_pop('exclude', dict())
+        self.exclude_people = get_pop('exclude_people', [])
+        self.exclude_sessions = get_pop('exclude_sessions', [])
+        self.exclude = get_pop('exclude', {})
         self.deep1010 = deep1010
         if self.deep1010 is not None and (self.data_min is None or self.data_max is None):
             print("Warning: Can't add scale index with dataset that is missing info.")
-        self._different_deep1010s = list()
+        self._different_deep1010s = []
         self._targets = get_pop('targets', None)
         self._unique_events = set()
         self.return_trial_ids = return_trial_ids
@@ -276,7 +278,7 @@ class DatasetConfig:
             raise DN3ConfigException("The toplevel {} for dataset {} does not exists".format(self.toplevel, self.name))
 
         # The rest
-        if adopt_auxiliaries and len(config) > 0:
+        if adopt_auxiliaries and config:
             print("Adding additional configuration entries: {}".format(config.keys()))
             _adopt_auxiliaries(self, config)
 
@@ -285,7 +287,7 @@ class DatasetConfig:
             for ext in ext_handlers:
                 self.add_extension_handler(ext, ext_handlers[ext])
 
-        self._excluded_people = list()
+        self._excluded_people = []
 
         # Callbacks and custom loaders
         self._custom_thinker_loader = None
@@ -309,10 +311,11 @@ class DatasetConfig:
     def _picks_as_types(picks):
         if picks is None:
             return False
-        for pick in picks:
-            if not isinstance(pick, str) or pick.lower() not in DatasetConfig._PICK_TYPES:
-                return False
-        return True
+        return not any(
+            not isinstance(pick, str)
+            or pick.lower() not in DatasetConfig._PICK_TYPES
+            for pick in picks
+        )
 
     @staticmethod
     def _determine_path(toplevel, relative_directory=None):
@@ -345,13 +348,14 @@ class DatasetConfig:
         files: list
                A listing of all the candidate filepaths (before excluding those that match exclusion criteria).
         """
-        files = list()
-        pbar = tqdm.tqdm(self.extensions,
-                         desc="Scanning {}. If there are a lot of files, this may take a while...".format(
-                             self.toplevel))
+        files = []
+        pbar = tqdm.tqdm(
+            self.extensions,
+            desc=f"Scanning {self.toplevel}. If there are a lot of files, this may take a while...",
+        )
         for extension in pbar:
             pbar.set_postfix(dict(extension=extension))
-            files += self.toplevel.glob("**/*{}".format(extension))
+            files += self.toplevel.glob(f"**/*{extension}")
         return files
 
     def _is_narrowly_excluded(self, person_name, session_name):
@@ -391,16 +395,19 @@ class DatasetConfig:
         else:
             person = search(self.filename_format, str(f))
             if person is None:
-                raise DN3ConfigException("Could not find person in {} using {}.".format(f.name, self.filename_format))
+                raise DN3ConfigException(
+                    f"Could not find person in {f.name} using {self.filename_format}."
+                )
             person = person['subject']
         return person
 
     def _get_session_name(self, f: Path):
-        if self.filename_format is not None and fnmatch(self.filename_format, "*{session*}*"):
-            sess_name = search(self.filename_format, str(f))['session']
-        else:
-            sess_name = f.name
-        return sess_name
+        return (
+            search(self.filename_format, str(f))['session']
+            if self.filename_format is not None
+            and fnmatch(self.filename_format, "*{session*}*")
+            else f.name
+        )
 
     def auto_mapping(self, files=None, reset_exclusions=True):
         """
@@ -420,10 +427,10 @@ class DatasetConfig:
                   sessions.
         """
         if reset_exclusions:
-            self._excluded_people = list()
+            self._excluded_people = []
 
         files = self.scan_toplevel() if files is None else files
-        mapping = dict()
+        mapping = {}
         for sess_file in files:
             sess_file = Path(sess_file)
             try:
@@ -496,13 +503,13 @@ class DatasetConfig:
             return self._custom_raw_loader(path)
         if path.suffix in self._extension_handlers:
             return self._extension_handlers[path.suffix](str(path), preload=self.preload)
-        print("Handler for file {} with extension {} not found.".format(str(path), path.suffix))
+        print(f"Handler for file {str(path)} with extension {path.suffix} not found.")
         for ext in path.suffixes:
             if ext in self._extension_handlers:
-                print("Trying {} instead...".format(ext))
+                print(f"Trying {ext} instead...")
                 return self._extension_handlers[ext](str(path), preload=self.preload)
 
-        raise DN3ConfigException("No supported/provided loader found for {}".format(str(path)))
+        raise DN3ConfigException(f"No supported/provided loader found for {str(path)}")
 
     @staticmethod
     def _prepare_session(raw, tlen, decimate, desired_sfreq, desired_samples, picks, exclude_channels, rename_channels,
@@ -516,11 +523,9 @@ class DatasetConfig:
 
         # Don't allow violation of Nyquist criterion if sfreq is being changed
         if lowpass is not None and (new_sfreq < 2 * lowpass) and new_sfreq != raw_sfreq:
-            raise DN3ConfigException("Could not create raw for {}. With lowpass filter {}, sampling frequency {} and "
-                                     "new sfreq {}. This is going to have bad aliasing!".format(raw.filenames[0],
-                                                                                                raw.info['lowpass'],
-                                                                                                raw.info['sfreq'],
-                                                                                                new_sfreq))
+            raise DN3ConfigException(
+                f"Could not create raw for {raw.filenames[0]}. With lowpass filter {raw.info['lowpass']}, sampling frequency {raw.info['sfreq']} and new sfreq {new_sfreq}. This is going to have bad aliasing!"
+            )
 
         # Leverage decimation first to match desired sfreq (saves memory)
         if desired_sfreq is not None:
@@ -529,14 +534,14 @@ class DatasetConfig:
 
         # Pick types
         picks = pick_types(raw.info, **{t: t in picks for t in DatasetConfig._PICK_TYPES}) \
-            if DatasetConfig._picks_as_types(picks) else list(range(len(raw.ch_names)))
+                    if DatasetConfig._picks_as_types(picks) else list(range(len(raw.ch_names)))
 
         # Exclude channel index by pattern match
         picks = ([idx for idx in picks if True not in [fnmatch(raw.ch_names[idx], pattern)
                                                        for pattern in exclude_channels]])
 
         # Rename channels
-        renaming_map = dict()
+        renaming_map = {}
         for new_ch, pattern in rename_channels.items():
             for old_ch in [raw.ch_names[idx] for idx in picks if fnmatch(raw.ch_names[idx], pattern)]:
                 renaming_map[old_ch] = new_ch
@@ -545,7 +550,7 @@ class DatasetConfig:
         except ValueError as e:
             print("Error renaming channels from session: ", raw.filenames[0])
             print("Failed to rename ", raw.ch_names, " using ", renaming_map)
-            raise DN3ConfigException("Skipping channel name issue.")
+            raise DN3ConfigException("Skipping channel name issue.") from e
 
         tlen = desired_samples / new_sfreq if tlen is None else tlen
 
@@ -553,11 +558,10 @@ class DatasetConfig:
 
     def _construct_session_from_config(self, session, sess_id, thinker_id):
         bad_spans = None
-        if thinker_id in self.exclude.keys():
-            if sess_id in self.exclude[thinker_id].keys():
-                bad_spans = self.exclude[thinker_id][sess_id]
-                if bad_spans is None:
-                    raise DN3ConfigException("Skipping {} - {}".format(thinker_id, sess_id))
+        if thinker_id in self.exclude.keys() and sess_id in self.exclude[thinker_id].keys():
+            bad_spans = self.exclude[thinker_id][sess_id]
+            if bad_spans is None:
+                raise DN3ConfigException("Skipping {} - {}".format(thinker_id, sess_id))
 
         def load_and_prepare(sess):
             if not isinstance(sess, Path):
@@ -565,6 +569,7 @@ class DatasetConfig:
             r = self._load_raw(sess)
             return (sess, *self._prepare_session(r, self.tlen, self.decimate, self._sfreq, self._samples, self.picks,
                                                 self.exclude_channels, self.rename_channels, self.hpf, self.lpf))
+
         sess, raw, tlen, picks, new_sfreq = load_and_prepare(session)
 
         # Fixme - deprecate the decimate option in favour of specifying desired sfreq's
@@ -581,7 +586,7 @@ class DatasetConfig:
                 if use_annotations and self.annotation_format is not None:
                     patt = self.annotation_format.format(subject=thinker_id, session=sess_id)
                     ann = [str(f) for f in session.parent.glob(patt)]
-                    if len(ann) > 0:
+                    if ann:
                         if len(ann) > 1:
                             print("More than one annotation found for {}. Falling back to {}".format(patt, ann[0]))
                         raw.set_annotations(read_annotations(ann[0]))
@@ -643,7 +648,7 @@ class DatasetConfig:
         if self._custom_thinker_loader is not None:
             thinker = self._custom_thinker_loader(sessions, thinker_id)
         else:
-            sessions = dict()
+            sessions = {}
             for sess in thinker:
                 sess = Path(sess)
                 sess_name = self._get_session_name(sess)
@@ -652,8 +657,8 @@ class DatasetConfig:
                     after_cb = None if self._session_callback is None else self._session_callback(new_session)
                     sessions[sess_name] = new_session if after_cb is None else after_cb
                 except DN3ConfigException as e:
-                    tqdm.tqdm.write("Skipping {}. Exception: {}.".format(sess_name, e.args))
-            if len(sessions) == 0:
+                    tqdm.tqdm.write(f"Skipping {sess_name}. Exception: {e.args}.")
+            if not sessions:
                 raise DN3ConfigException
             thinker = Thinker(sessions)
 
@@ -678,7 +683,7 @@ class DatasetConfig:
 
         if self._sfreq is not None and thinker.sfreq != self._sfreq:
             new_sequence_len = int(thinker.sequence_length * self._sfreq / thinker.sfreq) if self._samples is None \
-                else self._samples
+                    else self._samples
             thinker.add_transform(TemporalInterpolation(new_sequence_len, new_sfreq=self._sfreq))
 
         return thinker
@@ -711,7 +716,7 @@ class DatasetConfig:
         if self.dumped is not None:
             path = Path(self.dumped)
             if path.exists():
-                tqdm.tqdm.write("Found pre-dumped dataset directory at {}".format(self.dumped))
+                tqdm.tqdm.write(f"Found pre-dumped dataset directory at {self.dumped}")
                 info = DatasetInfo(self.name, self.data_max, self.data_min, self._excluded_people,
                                    targets=self._targets if self._targets is not None else len(self._unique_events))
                 dataset = DumpedDataset(path, info=info)
@@ -729,18 +734,19 @@ class DatasetConfig:
 
         file_types = "Raw" if self._create_raw_recordings else "Epoched"
         if self.preload:
-            file_types = "Preloaded " + file_types
-        print("Creating dataset of {} {} recordings from {} people.".format(sum(len(mapping[p]) for p in mapping),
-                                                                            file_types, len(mapping)))
-        description = "Loading {}".format(self.name)
-        thinkers = dict()
+            file_types = f"Preloaded {file_types}"
+        print(
+            f"Creating dataset of {sum(len(mapping[p]) for p in mapping)} {file_types} recordings from {len(mapping)} people."
+        )
+        description = f"Loading {self.name}"
+        thinkers = {}
         for t in tqdm.tqdm(mapping, desc=description, unit='person'):
             try:
                 new_thinker = self._construct_thinker_from_config(mapping[t], t)
                 after_cb = None if self._thinker_callback is None else self._thinker_callback(new_thinker)
                 thinkers[t] = new_thinker if after_cb is None else after_cb
             except DN3ConfigException:
-                tqdm.tqdm.write("None of the sessions for {} were usable. Skipping...".format(t))
+                tqdm.tqdm.write(f"None of the sessions for {t} were usable. Skipping...")
 
         info = DatasetInfo(self.name, self.data_max, self.data_min, self._excluded_people,
                            targets=self._targets if self._targets is not None else len(self._unique_events))
@@ -750,16 +756,22 @@ class DatasetConfig:
         dataset = Dataset(thinkers, **dsargs)
         print(dataset)
         if self.deep1010 is not None:
-            print("Constructed {} channel maps".format(len(self._different_deep1010s)))
+            print(f"Constructed {len(self._different_deep1010s)} channel maps")
             for names, deep_mapping, unused, count in self._different_deep1010s:
-                print('=' * 20)
-                print("Used by {} recordings:".format(count))
-                print(stringify_channel_mapping(names, deep_mapping))
-                print('-'*20)
-                print("Excluded {}".format(unused))
-                print('=' * 20)
+                self._extracted_from_auto_construct_dataset_71(
+                    count, names, deep_mapping, unused
+                )
         #     dataset.add_transform(MappingDeep1010(dataset))
         return dataset
+
+    # TODO Rename this here and in `auto_construct_dataset`
+    def _extracted_from_auto_construct_dataset_71(self, count, names, deep_mapping, unused):
+        print('=' * 20)
+        print(f"Used by {count} recordings:")
+        print(stringify_channel_mapping(names, deep_mapping))
+        print('-'*20)
+        print(f"Excluded {unused}")
+        print('=' * 20)
 
 
 class RawOnTheFlyRecording(RawTorchRecording):

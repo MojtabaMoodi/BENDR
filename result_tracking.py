@@ -11,11 +11,11 @@ class ThinkerwiseResultTracker:
         """
         Track the performance of :any:`Thinker`(s) under a certain process.
         """
-        self._sheets = dict()
+        self._sheets = {}
 
     def _update_sheet(self, ds_name, summary):
         if ds_name not in self._sheets:
-            self._sheets[ds_name] = list()
+            self._sheets[ds_name] = []
         self._sheets[ds_name].append(summary)
 
     def add_results_thinker(self, process: BaseProcess, ds_name: str, thinker: Thinker, **kwargs):
@@ -32,7 +32,7 @@ class ThinkerwiseResultTracker:
 
     def performance_summary(self, ds_name):
         if ds_name not in self._sheets:
-            print("Could not find {} to create performance summary.".format(ds_name))
+            print(f"Could not find {ds_name} to create performance summary.")
         tqdm.tqdm.write(str(pd.DataFrame(self._sheets[ds_name]).describe()))
 
     def to_spreadsheet(self, filename: str):
@@ -41,4 +41,4 @@ class ThinkerwiseResultTracker:
             for ds_name in self._sheets:
                 df = pd.DataFrame(self._sheets[ds_name])
                 df.to_excel(writer, sheet_name=ds_name, header=True, index=False)
-                print("Wrote results for {}...".format(ds_name))
+                print(f"Wrote results for {ds_name}...")
