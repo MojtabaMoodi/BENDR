@@ -59,12 +59,12 @@ class BaseProcess(object):
                  Arguments that will be used by the processes' :py:meth:`BaseProcess.build_network()` method.
         """
         if cuda is None:
-            if torch.backends.mps.is_available() and torch.backends.mps.is_built():
-                cuda = "mps"
-                tqdm.tqdm.write("Apple M-series GPU detected: training and model execution will be performed on MPS.")
-            elif torch.cuda.is_available():
+            if torch.cuda.is_available():
                 cuda = "cuda"
                 tqdm.tqdm.write("CUDA GPU detected: training and model execution will be performed on CUDA.")
+            elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+                cuda = "mps"
+                tqdm.tqdm.write("Apple M-series GPU detected: training and model execution will be performed on MPS.")
             else:
                 cuda = "cpu"
                 tqdm.tqdm.write("No GPU detected: training and model execution will be performed on CPU.")

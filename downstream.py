@@ -34,6 +34,12 @@ if __name__ == '__main__':
     parser.add_argument('--num-workers', default=4, type=int, help='Number of dataloader workers.')
     parser.add_argument('--results-filename', default=None, help='What to name the spreadsheet produced with all '
                                                                  'final results.')
+    
+    import sys
+    # If no args are provided (e.g. during VS code debugging), set default args
+    if len(sys.argv) == 1:
+        sys.argv += ['BENDR', '--ds-config', 'configs/downstream.yml']
+
     args = parser.parse_args()
     experiment = ExperimentConfig(args.ds_config)
     if args.results_filename:
@@ -43,7 +49,8 @@ if __name__ == '__main__':
         added_metrics, retain_best, _ = utils.get_ds_added_metrics(ds_name, args.metrics_config)
         for fold, (training, validation, test) in enumerate(tqdm.tqdm(utils.get_lmoso_iterator(ds_name, ds))):
 
-            tqdm.tqdm.write(torch.cuda.memory_summary())
+            if torch.cuda.is_available():
+                tqdm.tqdm.write(torch.cuda.memory_summary())
 
             if args.model == utils.MODEL_CHOICES[0]:
                 model = BENDRClassification.from_dataset(training, multi_gpu=args.multi_gpu)

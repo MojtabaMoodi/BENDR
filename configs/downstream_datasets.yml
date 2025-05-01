@@ -1,6 +1,6 @@
 mmidb:
   name: "Physionet MMIDB"
-  toplevel: /<path/to>/physionet.org/files/eegmmidb/
+  toplevel: /Volumes/Data/MMI
   tmin: 0
   tlen: 6
   data_max: 0.001
@@ -25,7 +25,7 @@ mmidb:
 
 bci_iv_2a:
   name: "BCI Competition IV 2a"
-  toplevel: <path>
+  toplevel: /Volumes/Data/BCIC
   tmin: -2
   tlen: 6
   data_max: 100
@@ -41,7 +41,7 @@ bci_iv_2a:
 
 ern:
   name: "Kaggle ERN Competition"
-  toplevel: <path>
+  toplevel: /Volumes/Data/ERN
   tmin: -0.7
   tlen: 2
   data_max: 3500
@@ -76,7 +76,7 @@ sleep-edf:
   name: "Sleep EDFx Cassette"
   filename_format: "SC4{subject:2}{session:1}"
   annotation_format: "SC4{subject:2}{session:1}*Hypnogram*"
-  toplevel: /<path/to>/physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/
+  toplevel: /Volumes/Data/SSC/sleep-cassette/
   tmin: 0
   tlen: 30
   data_max: 4460.6
@@ -114,7 +114,7 @@ sleep-edf:
 erpbci:
   data_max: 0.00631
   data_min: -0.00283
-  toplevel: /<path/to>/erpbci/1.0.0
+  toplevel: /Volumes/Data/P300
   tmin: -0.1
   tlen: 0.7
   # We low-passed offline using this parameter just so it didn't happen over and over.
