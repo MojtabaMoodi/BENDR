@@ -36,6 +36,8 @@ _SUPPORTED_EXTENSIONS = {
     # TODO: add much more support, at least all of MNE-python
     '.bdf': loader.read_raw_bdf,
     '.gdf': loader.read_raw_gdf,
+    # TODO: add support for csv files
+    # '.csv': loader.read_raw_csv,
 }
 
 YamlIncludeConstructor.add_to_loader_class(loader_class=yaml.FullLoader)
@@ -47,13 +49,17 @@ set_log_level(False)
 
 class _DumbNamespace:
     def __init__(self, d: dict):
-        self._d = d.copy()
-        for k in d:
-            if isinstance(d[k], dict):
-                d[k] = _DumbNamespace(d[k])
-            if isinstance(d[k], list):
-                d[k] = [_DumbNamespace(d[k][i]) if isinstance(d[k][i], dict) else d[k][i] for i in range(len(d[k]))]
-        self.__dict__.update(d)
+        processed = {}
+        for k, v in d.items():
+            if isinstance(v, dict):
+                processed[k] = _DumbNamespace(v)
+            elif isinstance(v, list):
+                processed[k] = [_DumbNamespace(item) if isinstance(item, dict) else item for item in v]
+            else:
+                processed[k] = v
+        
+        # self._d = d.copy()
+        self.__dict__.update(processed)
 
     def keys(self):
         return list(self.__dict__.keys())
@@ -61,8 +67,8 @@ class _DumbNamespace:
     def __getitem__(self, item):
         return self.__dict__[item]
 
-    def as_dict(self):
-        return self._d
+    # def as_dict(self):
+        # return self._d
 
 
 def _adopt_auxiliaries(obj, remaining):
@@ -743,6 +749,7 @@ class DatasetConfig:
         for t in tqdm.tqdm(mapping, desc=description, unit='person'):
             try:
                 new_thinker = self._construct_thinker_from_config(mapping[t], t)
+                # after callback to process thinker
                 after_cb = None if self._thinker_callback is None else self._thinker_callback(new_thinker)
                 thinkers[t] = new_thinker if after_cb is None else after_cb
             except DN3ConfigException:
