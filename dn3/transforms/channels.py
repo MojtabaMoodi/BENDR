@@ -19,19 +19,19 @@ DEEP_1010_CHS_LISTING = [
     "NZ",
     "FP1", "FPZ", "FP2",
     "AF7", "AF3", "AFZ", "AF4", "AF8",
-    "F9", *["F{}".format(n) for n in _LEFT_NUMBERS], "FZ", *["F{}".format(n) for n in _RIGHT_NUMBERS], "F10",
+    "F9", *[f"F{n}" for n in _LEFT_NUMBERS], "FZ", *[f"F{n}" for n in _RIGHT_NUMBERS], "F10",
 
-    "FT9", "FT7", *["FC{}".format(n) for n in _LEFT_NUMBERS[1:]], "FCZ",
-    *["FC{}".format(n) for n in _RIGHT_NUMBERS[:-1]], "FT8", "FT10",
-                                                                                                                                  
-    "T9", "T7", "T3",  *["C{}".format(n) for n in _LEFT_NUMBERS[1:]], "CZ",
-    *["C{}".format(n) for n in _RIGHT_NUMBERS[:-1]], "T4", "T8", "T10",
+    "FT9", "FT7", *[f"FC{n}" for n in _LEFT_NUMBERS[1:]], "FCZ",
+    *[f"FC{n}" for n in _RIGHT_NUMBERS[:-1]], "FT8", "FT10",
 
-    "TP9", "TP7", *["CP{}".format(n) for n in _LEFT_NUMBERS[1:]], "CPZ",
-    *["CP{}".format(n) for n in _RIGHT_NUMBERS[:-1]], "TP8", "TP10",
+    "T9", "T7", "T3",  *[f"C{n}" for n in _LEFT_NUMBERS[1:]], "CZ",
+    *[f"C{n}" for n in _RIGHT_NUMBERS[:-1]], "T4", "T8", "T10",
 
-    "P9", "P7", "T5",  *["P{}".format(n) for n in _LEFT_NUMBERS[1:]], "PZ",
-    *["P{}".format(n) for n in _RIGHT_NUMBERS[:-1]],  "T6", "P8", "P10",
+    "TP9", "TP7", *[f"CP{n}" for n in _LEFT_NUMBERS[1:]], "CPZ",
+    *[f"CP{n}" for n in _RIGHT_NUMBERS[:-1]], "TP8", "TP10",
+
+    "P9", "P7", "T5",  *[f"P{n}" for n in _LEFT_NUMBERS[1:]], "PZ",
+    *[f"P{n}" for n in _RIGHT_NUMBERS[:-1]],  "T6", "P8", "P10",
 
     "PO7", "PO3", "POZ", "PO4", "PO8",
     "O1",  "OZ", "O2",
@@ -46,7 +46,7 @@ DEEP_1010_CHS_LISTING = [
     # Extra
     *["EX{}".format(n) for n in range(1, _EXTRA_CHANNELS+1)]
 ]
-EEG_INDS = list(range(0, DEEP_1010_CHS_LISTING.index('VEOGL')))
+EEG_INDS = list(range(DEEP_1010_CHS_LISTING.index('VEOGL')))
 EOG_INDS = [DEEP_1010_CHS_LISTING.index(ch) for ch in ["VEOGL", "VEOGR", "HEOGL", "HEOGR"]]
 REF_INDS = [DEEP_1010_CHS_LISTING.index(ch) for ch in ["A1", "A2", "REF"]]
 EXTRA_INDS = list(range(len(DEEP_1010_CHS_LISTING) - _EXTRA_CHANNELS, len(DEEP_1010_CHS_LISTING)))
@@ -59,13 +59,27 @@ DEEP_1010_CH_TYPES = ([FIFF.FIFFV_EEG_CH] * _NUM_EEG_CHS) + ([FIFF.FIFFV_EOG_CH]
 
 
 def _deep_1010(map, names, eog, ear_ref, extra):
+    """
+    Generates a mapping matrix from provided channel names to the Deep1010 standard layout.
+    This function normalizes the mapping to account for multiple values mapped to a single location.
+
+    Args:
+        map (np.ndarray): Initial mapping matrix of shape (num_channels, num_deep1010_channels).
+        names (list): List of channel names to be mapped.
+        eog (list): List of EOG channel names.
+        ear_ref (list): List of ear reference channel names.
+        extra (list): List of extra channel names.
+
+    Returns:
+        torch.Tensor: Normalized mapping matrix as a float tensor.
+    """
 
     for i, ch in enumerate(names):
         if ch not in eog and ch not in ear_ref and ch not in extra:
             try:
                 map[i, DEEP_1010_CHS_LISTING.index(str(ch).upper())] = 1.0
             except ValueError:
-                print("Warning: channel {} not found in standard layout. Skipping...".format(ch))
+                print(f"Warning: channel {ch} not found in standard layout. Skipping...")
                 continue
 
     # Normalize for when multiple values are mapped to single location
@@ -76,54 +90,112 @@ def _deep_1010(map, names, eog, ear_ref, extra):
 
 
 def _valid_character_heuristics(name, informative_characters):
+    """
+    Extracts valid characters from a channel name based on a set of informative characters.
+    Returns a cleaned channel name or None if no valid characters are found.
+
+    Args:
+        name (str): The original channel name.
+        informative_characters (iterable): Characters considered informative for the mapping.
+
+    Returns:
+        str or None: The cleaned channel name, or None if no valid characters are found.
+    """
     possible = ''.join(c for c in name.upper() if c in informative_characters).replace(' ', '')
-    if possible == "":
-        print("Could not use channel {}. Could not resolve its true label, rename first.".format(name))
+    if not possible:
+        print(f"Could not use channel {name}. Could not resolve its true label, rename first.")
         return None
     return possible
 
 
 def _check_num_and_get_types(type_dict: OrderedDict):
-    type_lists = list()
+    """
+    Ensures the number of EOG and reference channels does not exceed the Deep1010 standard.
+    Returns lists of valid EOG and reference channel names, removing any excess channels.
+
+    Args:
+        type_dict (OrderedDict): Dictionary mapping channel names to their types.
+
+    Returns:
+        tuple: Two lists containing valid EOG and reference channel names, respectively.
+    """
+    type_lists = []
     for ch_type, max_num in zip(('eog', 'ref'), (len(EOG_INDS), len(REF_INDS))):
         channels = [ch_name for ch_name, _type in type_dict.items() if _type == ch_type]
 
         for name in channels[max_num:]:
-            print("Losing assumed {} channel {} because there are too many.".format(ch_type, name))
+            print(f"Losing assumed {ch_type} channel {name} because there are too many.")
             type_dict[name] = None
         type_lists.append(channels[:max_num])
     return type_lists[0], type_lists[1]
 
 
 def _heuristic_eog_resolution(eog_channel_name):
+    """
+    Resolves an EOG channel name to a standardized format using informative characters.
+    Returns a cleaned EOG channel name suitable for Deep1010 mapping.
+
+    Args:
+        eog_channel_name (str): The original EOG channel name.
+
+    Returns:
+        str or None: The cleaned EOG channel name, or None if no valid characters are found.
+    """
     return _valid_character_heuristics(eog_channel_name, "VHEOGLR")
 
 
 def _heuristic_ref_resolution(ref_channel_name: str):
-    ref_channel_name = ref_channel_name.replace('EAR', '')
-    ref_channel_name = ref_channel_name.replace('REF', '')
-    if ref_channel_name.find('A1') != -1:
-        return 'A1'
-    elif ref_channel_name.find('A2') != -1:
-        return 'A2'
+    """
+    Resolves a reference channel name to a standardized format.
 
-    if ref_channel_name.find('L') != -1:
+    Args:
+        ref_channel_name (str): The original reference channel name.
+
+    Returns:
+        str: The resolved reference channel name. Defaults to "REF" if no specific identifier is found.
+    """
+    # Remove common identifiers
+    ref_channel_name = ref_channel_name.replace('EAR', '').replace('REF', '')
+
+    # Direct mapping based on specific identifiers
+    if 'A1' in ref_channel_name or 'L' in ref_channel_name:
         return 'A1'
-    elif ref_channel_name.find('R') != -1:
-        return 'A2'
-    return "REF"
+    
+    return 'A2' if 'A2' in ref_channel_name or 'R' in ref_channel_name else "REF"
 
 
 def _heuristic_eeg_resolution(eeg_ch_name: str):
+    """
+    Resolves an EEG channel name to a standardized format using informative characters.
+    Returns a cleaned EEG channel name suitable for Deep1010 mapping.
+
+    Args:
+        eeg_ch_name (str): The original EEG channel name.
+
+    Returns:
+        str or None: The cleaned EEG channel name, or None if no valid characters are found.
+    """
     eeg_ch_name = eeg_ch_name.upper()
     # remove some common garbage
-    eeg_ch_name = eeg_ch_name.replace('EEG', '')
-    eeg_ch_name = eeg_ch_name.replace('REF', '')
-    informative_characters = set([c for name in DEEP_1010_CHS_LISTING[:_NUM_EEG_CHS] for c in name])
+    eeg_ch_name = eeg_ch_name.replace('EEG', '').replace('REF', '')
+
+    informative_characters = {
+        c for name in DEEP_1010_CHS_LISTING[:_NUM_EEG_CHS] for c in name
+    }
     return _valid_character_heuristics(eeg_ch_name, informative_characters)
 
 
 def _likely_eeg_channel(name):
+    """
+    Determines if a channel name likely corresponds to an EEG channel in the Deep1010 standard.
+    Returns True if the name matches any standard EEG channel, otherwise returns False.
+
+    Args:
+        name (str): The channel name to check.
+
+    Returns:
+        bool: True if the channel is likely an EEG channel, False otherwise.
+    """
     if name is not None:
         for ch in DEEP_1010_CHS_LISTING[:_NUM_EEG_CHS]:
             if ch in name.upper():
@@ -132,6 +204,16 @@ def _likely_eeg_channel(name):
 
 
 def _heuristic_resolution(old_type_dict: OrderedDict):
+    """
+    Resolves channel names in a type dictionary to standardized Deep1010 names using heuristics.
+    Returns a new OrderedDict with resolved channel names, handling duplicates and unresolvable names.
+
+    Args:
+        old_type_dict (OrderedDict): Dictionary mapping original channel names to their types.
+
+    Returns:
+        OrderedDict: Dictionary with resolved channel names as keys and their types as values.
+    """
     resolver = {'eeg': _heuristic_eeg_resolution, 'eog': _heuristic_eog_resolution, 'ref': _heuristic_ref_resolution,
                 'extra': lambda x: x, None: lambda x: x}
 
@@ -147,9 +229,10 @@ def _heuristic_resolution(old_type_dict: OrderedDict):
             new_type_dict[old_name] = None
         else:
             while new_name in new_type_dict.keys():
-                print('Deep1010 Heuristics resulted in duplicate entries for {}, incrementing name, but will be lost '
-                      'in mapping'.format(new_name))
-                new_name = new_name + '-COPY'
+                print(
+                    f'Deep1010 Heuristics resulted in duplicate entries for {new_name}, incrementing name, but will be lost in mapping'
+                )
+                new_name = f"{new_name}-COPY"
             new_type_dict[new_name] = old_type_dict[old_name]
 
     assert len(new_type_dict) == len(old_type_dict)
@@ -179,46 +262,48 @@ def map_named_channels_deep_1010(channel_names: list, EOG=None, ear_ref=None, ex
     mapping : torch.Tensor
               Mapping matrix from previous channel sequence to Deep1010.
     """
-    map = np.zeros((len(channel_names), len(DEEP_1010_CHS_LISTING)))
+    mapping_matrix = np.zeros((len(channel_names), len(DEEP_1010_CHS_LISTING)))
 
     if isinstance(EOG, str):
         EOG = [EOG] * 4
+    elif not EOG:
+        EOG = []
     elif len(EOG) == 1:
         EOG = EOG * 4
-    elif EOG is None or len(EOG) == 0:
-        EOG = []
     elif len(EOG) == 2:
         EOG = EOG * 2
     else:
-        assert len(EOG) == 4
+        assert len(EOG) == 4, f"EOG channels must be 1, 2, or 4 channels. Got {len(EOG)}"
+
     for eog_map, eog_std in zip(EOG, EOG_INDS):
         try:
-            map[channel_names.index(eog_map), eog_std] = 1.0
-        except ValueError:
-            raise ValueError("EOG channel {} not found in provided channels.".format(eog_map))
+            mapping_matrix[channel_names.index(eog_map), eog_std] = 1.0
+        except ValueError as e:
+            raise ValueError(f"EOG channel {eog_map} not found in provided channels.") from e
 
     if isinstance(ear_ref, str):
         ear_ref = [ear_ref] * 2
-    elif ear_ref is None:
+    elif not ear_ref:
         ear_ref = []
     else:
-        assert len(ear_ref) <= len(REF_INDS)
+        assert len(ear_ref) <= len(REF_INDS), "Too many ear reference channels provided."
     for ref_map, ref_std in zip(ear_ref, REF_INDS):
         try:
-            map[channel_names.index(ref_map), ref_std] = 1.0
-        except ValueError:
-            raise ValueError("Reference channel {} not found in provided channels.".format(ref_map))
+            mapping_matrix[channel_names.index(ref_map), ref_std] = 1.0
+        except ValueError as e:
+            raise ValueError(f"Reference channel {ref_map} not found in provided channels.") from e
 
     if isinstance(extra_channels, str):
         extra_channels = [extra_channels]
     elif extra_channels is None:
         extra_channels = []
     assert len(extra_channels) <= _EXTRA_CHANNELS
+    
     for ch, place in zip(extra_channels, EXTRA_INDS):
         if ch is not None:
-            map[channel_names.index(ch), place] = 1.0
+            mapping_matrix[channel_names.index(ch), place] = 1.0
 
-    return _deep_1010(map, channel_names, EOG, ear_ref, extra_channels)
+    return _deep_1010(mapping_matrix, channel_names, EOG, ear_ref, extra_channels)
 
 
 def map_dataset_channels_deep_1010(channels: np.ndarray, exclude_stim=True):
@@ -249,8 +334,9 @@ def map_dataset_channels_deep_1010(channels: np.ndarray, exclude_stim=True):
               Mapping matrix from previous channel sequence to Deep1010.
     """
     if len(channels.shape) != 2 or channels.shape[1] != 2:
-        raise ValueError("Deep1010 Mapping: channels must be a 2 dimensional array with dim0 = num_channels, dim1 = 2."
-                         " Got {}".format(channels.shape))
+        raise ValueError(
+            f"Deep1010 Mapping: channels must be a 2 dimensional array with dim0 = num_channels, dim1 = 2. Got {channels.shape}"
+        )
     channel_types = OrderedDict()
 
     # Use this for some semblance of order in the "extras"
@@ -275,9 +361,9 @@ def map_dataset_channels_deep_1010(channels: np.ndarray, exclude_stim=True):
             channel_types[name] = 'ref'
         else:
             if extra_idx == _EXTRA_CHANNELS - 1 and not exclude_stim:
-                print("Stim channel overwritten by {} in Deep1010 mapping.".format(name))
+                print(f"Stim channel overwritten by {name} in Deep1010 mapping.")
             elif extra_idx == _EXTRA_CHANNELS:
-                print("No more room in extra channels for {}".format(name))
+                print(f"No more room in extra channels for {name}")
                 continue
             channel_types[name] = 'extra'
             extra[extra_idx] = name
@@ -290,14 +376,36 @@ def map_dataset_channels_deep_1010(channels: np.ndarray, exclude_stim=True):
 
 
 def stringify_channel_mapping(original_names: list, mapping: np.ndarray):
+    """
+    Creates a human-readable summary of the mapping from original channel names to Deep1010 standard names.
+    Returns a string showing the mapping for each channel type and highlights channels that were heuristically assigned.
+
+    Args:
+        original_names (list): List of original channel names.
+        mapping (np.ndarray): Mapping matrix from original channels to Deep1010 channels.
+
+    Returns:
+        str: A formatted string summarizing the channel mapping and heuristic assignments.
+    """
     result = ''
-    heuristically_mapped = list()
+    heuristically_mapped = []
 
     def match_old_new_idx(old_idx, new_idx_set: list):
+        """
+        Finds the Deep1010 standard channel names that correspond to a given original channel index.
+        Returns a comma-separated string of mapped Deep1010 channel names for the specified index set.
+
+        Args:
+            old_idx (int): Index of the original channel.
+            new_idx_set (list): List of Deep1010 channel indices to consider.
+
+        Returns:
+            str: Comma-separated Deep1010 channel names mapped from the original channel.
+        """
         new_names = [DEEP_1010_CHS_LISTING[i] for i in np.nonzero(mapping[old_idx, :])[0] if i in new_idx_set]
         return ','.join(new_names)
 
-    for inds, label in zip([list(range(0, _NUM_EEG_CHS)), EOG_INDS, REF_INDS, EXTRA_INDS],
+    for inds, label in zip([list(range(_NUM_EEG_CHS)), EOG_INDS, REF_INDS, EXTRA_INDS],
                            ['EEG', 'EOG', 'REF', 'EXTRA']):
         result += "{} (original(new)): ".format(label)
         for idx, name in enumerate(original_names):
@@ -311,5 +419,3 @@ def stringify_channel_mapping(original_names: list, mapping: np.ndarray):
     result += 'Heuristically Assigned: ' + ' '.join(heuristically_mapped)
 
     return result
-
-
