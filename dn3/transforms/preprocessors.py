@@ -47,21 +47,41 @@ class EuclideanAlignmentPreprocessor(Preprocessor):
     calculation).
     """
     def __init__(self, inds=None, complex_tolerance=1e-4):
-        self.reference_matrices = dict()
-        self.ind_lookup = dict()
+        """
+        Initializes the EuclideanAlignmentPreprocessor with optional fixed channel indices and complex tolerance.
+        Sets up storage for reference matrices and index lookups for each thinker and session.
+
+        Args:
+            inds (list or None): Fixed indices of channels to use for alignment. If None, indices are determined per session.
+            complex_tolerance (float): Tolerance for ignoring imaginary parts in the matrix square root.
+        """
+        self.reference_matrices = {}
+        self.ind_lookup = {}
         self.fixed_inds = inds
         self._tol = complex_tolerance
 
     def __call__(self, session, session_id=0, thinker_id=0):
+        """
+        Computes and stores a Euclidean alignment reference matrix for a given session and thinker.
+        Calculates the average covariance of EEG channel data, computes its matrix square root, and stores the inverse as the reference matrix.
+
+        Args:
+            session: The session object containing EEG data.
+            session_id (int, optional): The session identifier. Defaults to 0.
+            thinker_id (int, optional): The thinker identifier. Defaults to 0.
+
+        Raises:
+            ValueError: If a reference matrix for the given thinker and session already exists.
+        """
         if thinker_id in self.reference_matrices.keys():
             if session_id in self.reference_matrices[thinker_id].keys():
                 raise ValueError(f"Already computed reference matrix for thinker {thinker_id}; session {session_id}")
         else:
-            self.reference_matrices[thinker_id] = dict()
-            self.ind_lookup[thinker_id] = dict()
+            self.reference_matrices[thinker_id] = {}
+            self.ind_lookup[thinker_id] = {}
 
-        data = list()
-        mask = list()
+        data = []
+        mask = []
         # all_data = session.get_all()
         # data, mask = all_data[:2]
 
