@@ -3,9 +3,6 @@ import warnings
 import torch
 import numpy as np
 
-# from random import choices
-from typing import List
-
 from .channels import map_dataset_channels_deep_1010, DEEP_1010_CH_TYPES, SCALE_IND, \
     EEG_INDS, EOG_INDS, REF_INDS, EXTRA_INDS, DEEP_1010_CHS_LISTING
 from dn3.utils import min_max_normalize
@@ -227,7 +224,7 @@ class TemporalPadding(InstanceTransform):
         end_padding : int
                       The number of padded samples to add to the end of a trial
         mode : str
-               See `pytorch documentation <https://pytorch.org/docs/stable/nn.functional.html#torch.nn.functional.pad>`_
+               See `pytorch documentation <https://pytorch.org/docs/stable/nn.functional.html#torch.nn.functional.pad>`
         constant_value : float
                If mode is 'constant' (the default), the value to compose the samples of.
         """
