@@ -57,7 +57,7 @@ if __name__ == '__main__':
                                                  np.log10(sequence_experiments.global_samples),
                                                  num=args.num_sequence).astype(int)))
             for seq_len in tqdm.tqdm(logspace, desc='Sequence length'):
-                tqdm.tqdm.write("Length of sequences: {}".format(seq_len))
+                tqdm.tqdm.write(f"Length of sequences: {seq_len}")
                 dataset.add_transform(TemporalCrop(int(seq_len)))
                 run(dataset, ds_name, args, pretrain_experiments, sequence_experiments, results)
         else:
