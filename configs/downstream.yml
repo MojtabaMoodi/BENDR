@@ -1,10 +1,10 @@
 Configuratron:
   use_only:
     - mmidb
-    - bci_iv_2a
-    - ern
-    - erpbci
-    - sleep-edf
+    # - bci_iv_2a
+    # - ern
+    # - erpbci
+    # - sleep-edf
   preload: True
   sfreq: 256
   deep1010:
