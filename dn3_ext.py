@@ -24,7 +24,8 @@ class LinearHeadBENDR(Classifier):
         return self.encoder_h * self.pool_length
 
     def features_forward(self, x):
-        x = self.encoder(x)
+        # Forward just the features
+        x = self.encoder(x[0])
         x = self.enc_augment(x)
         x = self.summarizer(x)
         return self.extended_classifier(x)
@@ -88,7 +89,8 @@ class BENDRClassification(Classifier):
         return self.encoder_h
 
     def features_forward(self, *x):
-        encoded = self.encoder(x[0])
+        # Convert to half precision
+        encoded = self.encoder(x[0].half())
 
         if self.trial_embeddings is not None and len(x) > 1:
             embeddings = self.trial_embeddings(x[-1])
@@ -161,7 +163,8 @@ class RefinedBENDR(StrideClassifier):
         return self.encoder_h
 
     def features_forward(self, *x):
-        encoded = self.encoder(x[0])
+        # Convert to half precision
+        encoded = self.encoder(x[0].half())
 
         if self.trial_embeddings is not None and len(x) > 1:
             embeddings = self.trial_embeddings(x[-1])
@@ -486,7 +489,7 @@ class EncodingAugment(nn.Module):
                 mask_c = _make_mask((bs, feat), self.p_c, x.shape[1], self.mask_c_span)
 
         if mask_t is not None:
-            x.transpose(2, 1)[mask_t] = self.mask_replacement
+            x.transpose(2, 1)[mask_t] = self.mask_replacement.to(x.dtype)
         if mask_c is not None:
             x[mask_c] = 0
 
@@ -588,7 +591,7 @@ class BENDRContextualizer(nn.Module):
                 mask_c = _make_mask((bs, feat), self.p_c, x.shape[1], self.mask_c_span)
 
         if mask_t is not None:
-            x.transpose(2, 1)[mask_t] = self.mask_replacement
+            x.transpose(2, 1)[mask_t] = self.mask_replacement.to(x.dtype)
         if mask_c is not None:
             x[mask_c] = 0
 
@@ -597,7 +600,8 @@ class BENDRContextualizer(nn.Module):
         x = self.input_conditioning(x)
 
         if self.start_token is not None:
-            in_token = self.start_token * torch.ones((1, 1, 1), requires_grad=True).to(x.device).expand([-1, *x.shape[1:]])
+            # Input token should have the same dtype as the rest of the input
+            in_token = self.start_token * torch.ones((1, 1, 1), requires_grad=True).to(device=x.device, dtype=x.dtype).expand([-1, *x.shape[1:]])
             x = torch.cat([in_token, x], dim=0)
 
         for layer in self.transformer_layers:
