@@ -16,11 +16,11 @@ mne.set_log_level(False)
 
 
 def load_datasets(experiment):
-    training = list()
+    training = []
     validation = None
     total_thinkers = 0
     for name, ds in experiment.datasets.items():
-        print("Constructing " + name)
+        print(f"Constructing {name}")
         dataset = ds.auto_construct_dataset()
         dataset.add_transform(To1020())
         if hasattr(experiment, 'validation_dataset') and experiment.validation_dataset == name:
@@ -30,7 +30,7 @@ def load_datasets(experiment):
 
         training.append(dataset)
 
-    print("Training BENDR using {} people's data across {} datasets.".format(total_thinkers, len(training)))
+    print(f"Training BENDR using {total_thinkers} people's data across {len(training)} datasets.")
     return ConcatDataset(training), validation, total_thinkers
 
 
@@ -70,8 +70,8 @@ if __name__ == '__main__':
     def epoch_checkpoint(metrics):
         if not args.no_save and not args.no_save_epochs:
             tqdm.tqdm.write("Saving...")
-            encoder.save('checkpoints/encoder_epoch_{}.pt'.format(metrics['epoch']))
-            contextualizer.save('checkpoints/contextualizer_epoch_{}.pt'.format(metrics['epoch']))
+            encoder.save(f"checkpoints/encoder_epoch_{metrics['epoch']}.pt")
+            contextualizer.save(f"checkpoints/contextualizer_epoch_{metrics['epoch']}.pt")
 
     def simple_checkpoint(metrics):
         if not args.no_save:
@@ -89,14 +89,14 @@ if __name__ == '__main__':
     def epoch_checkpoint(metrics):
         if not args.no_save and not args.no_save_epochs:
             tqdm.tqdm.write("Saving...")
-            encoder.save('checkpoints/encoder_epoch_{}.pt'.format(metrics['epoch']))
-            contextualizer.save('checkpoints/contextualizer_epoch_{}.pt'.format(metrics['epoch']))
+            encoder.save(f"checkpoints/encoder_epoch_{metrics['epoch']}.pt")
+            contextualizer.save(f"checkpoints/contextualizer_epoch_{metrics['epoch']}.pt")
 
     def simple_checkpoint(metrics):
         if metrics is not None and metrics['Accuracy'] > experiment.mask_threshold and \
-                metrics['Mask_pct'] < experiment.mask_pct_max:
+                    metrics['Mask_pct'] < experiment.mask_pct_max:
             process.mask_span = int(process.mask_span * experiment.mask_inflation)
-            tqdm.tqdm.write("Increased mask span to {} samples".format(process.mask_span))
+            tqdm.tqdm.write(f"Increased mask span to {process.mask_span} samples")
         if not args.no_save:
             tqdm.tqdm.write("Saving...")
             encoder.save('checkpoints/encoder.pt')
