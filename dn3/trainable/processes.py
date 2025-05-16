@@ -2,7 +2,6 @@ import re
 from sys import gettrace
 
 from dn3.trainable.utils import _make_mask, _make_span_from_seeds
-from dn3.data.dataset import DN3ataset
 from dn3.utils import LabelSmoothedCrossEntropyLoss
 from dn3.trainable.models import Classifier
 from dn3.transforms.batch import BatchTransform
@@ -13,8 +12,6 @@ from dn3.transforms.batch import BatchTransform
 import tqdm.auto as tqdm
 
 import torch
-# ugh the worst, why did they make this protected...
-from torch.optim.lr_scheduler import _LRScheduler as Scheduler
 
 import numpy as np
 from pandas import DataFrame
