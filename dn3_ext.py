@@ -50,25 +50,31 @@ class LinearHeadBENDR(Classifier):
 
         self.enc_augment = EncodingAugment(encoder_h, mask_p_t, mask_p_c, mask_c_span=mask_c_span,
                                            mask_t_span=mask_t_span)
-        tqdm.tqdm.write(self.encoder.description(None, samples) + " | {} pooled".format(pool_length))
+        tqdm.tqdm.write(
+            f"{self.encoder.description(None, samples)} | {pool_length} pooled"
+        )
         self.summarizer = nn.AdaptiveAvgPool1d(pool_length)
 
-        classifier_layers = [self.encoder_h * self.pool_length for i in range(classifier_layers)] if \
-            not isinstance(classifier_layers, (tuple, list)) else classifier_layers
+        classifier_layers = (
+            classifier_layers if isinstance(classifier_layers, (tuple, list)) else [self.encoder_h * self.pool_length for _ in range(classifier_layers)]
+        )
         classifier_layers.insert(0, 3 * encoder_h * pool_length)
         self.extended_classifier = nn.Sequential(Flatten())
         for i in range(1, len(classifier_layers)):
-            self.extended_classifier.add_module("ext-classifier-{}".format(i), nn.Sequential(
-                nn.Linear(classifier_layers[i - 1], classifier_layers[i]),
-                nn.Dropout(feat_do),
-                nn.ReLU(),
-                nn.BatchNorm1d(classifier_layers[i]),
-            ))
+            self.extended_classifier.add_module(
+                f"ext-classifier-{i}",
+                nn.Sequential(
+                    nn.Linear(classifier_layers[i - 1], classifier_layers[i]),
+                    nn.Dropout(feat_do),
+                    nn.ReLU(),
+                    nn.BatchNorm1d(classifier_layers[i]),
+                ),
+            )
 
     def load_encoder(self, encoder_file, freeze=False, strict=True):
         self.encoder.load(encoder_file, strict=strict)
         self.encoder.freeze_features(not freeze)
-        print("Loaded {}".format(encoder_file))
+        print(f"Loaded {encoder_file}")
 
     def load_pretrained_modules(self, encoder_file, contextualizer_file, strict=False, freeze_encoder=True):
         self.load_encoder(encoder_file, strict=strict, freeze=freeze_encoder)
@@ -117,14 +123,17 @@ class BENDRClassification(Classifier):
 
         self.projection_mlp = nn.Sequential()
         for p in range(1, new_projection_layers + 1):
-            self.projection_mlp.add_module("projection-{}".format(p), nn.Sequential(
-                nn.Linear(encoder_h, encoder_h),
-                nn.Dropout(dropout),
-                nn.BatchNorm1d(encoder_h),
-                nn.GELU(),
-            ))
+            self.projection_mlp.add_module(
+                f"projection-{p}",
+                nn.Sequential(
+                    nn.Linear(encoder_h, encoder_h),
+                    nn.Dropout(dropout),
+                    nn.BatchNorm1d(encoder_h),
+                    nn.GELU(),
+                ),
+            )
         self.trial_embeddings = nn.Embedding(trial_embeddings, encoder_h, scale_grad_by_freq=True) \
-            if trial_embeddings is not None else trial_embeddings
+                if trial_embeddings is not None else trial_embeddings
 
     def load_encoder(self, encoder_file, freeze=False, strict=True):
         self.encoder.load(encoder_file, strict=strict)
@@ -177,14 +186,17 @@ class RefinedBENDR(StrideClassifier):
 
         self.projection_mlp = nn.Sequential()
         for p in range(1, new_projection_layers + 1):
-            self.projection_mlp.add_module("projection-{}".format(p), nn.Sequential(
-                nn.Conv1d(encoder_h, encoder_h, 1),
-                nn.Dropout2d(dropout),
-                nn.BatchNorm1d(encoder_h),
-                nn.GELU(),
-            ))
+            self.projection_mlp.add_module(
+                f"projection-{p}",
+                nn.Sequential(
+                    nn.Conv1d(encoder_h, encoder_h, 1),
+                    nn.Dropout2d(dropout),
+                    nn.BatchNorm1d(encoder_h),
+                    nn.GELU(),
+                ),
+            )
         self.trial_embeddings = nn.Embedding(trial_embeddings, encoder_h, scale_grad_by_freq=True) \
-            if trial_embeddings is not None else trial_embeddings
+                if trial_embeddings is not None else trial_embeddings
 
     def load_encoder(self, encoder_file, freeze=False, strict=True):
         self.encoder.load(encoder_file, strict=strict)
@@ -204,7 +216,7 @@ class RefinedBENDR(StrideClassifier):
 
 
 def _make_span_from_seeds(seeds, span, total=None):
-    inds = list()
+    inds = []
     for seed in seeds:
         for i in range(seed, seed + span):
             if total is not None and i >= total:
@@ -220,7 +232,7 @@ def _make_mask(shape, p, total, span, allow_no_inds=False):
     mask = torch.zeros(shape, requires_grad=False, dtype=torch.bool)
 
     for i in range(shape[0]):
-        mask_seeds = list()
+        mask_seeds = []
         while not allow_no_inds and len(mask_seeds) == 0 and p > 0:
             mask_seeds = np.nonzero(np.random.rand(total) < p)[0]
 
@@ -263,10 +275,7 @@ class BendingCollegeWav2Vec(BaseProcess):
 
     def description(self, sequence_len):
         encoded_samples = self._enc_downsample(sequence_len)
-        desc = "{} samples | mask span of {} at a rate of {} => E[masked] ~= {}".format(
-            encoded_samples, self.mask_span, self.mask_rate,
-            int(encoded_samples * self.mask_rate * self.mask_span))
-        return desc
+        return f"{encoded_samples} samples | mask span of {self.mask_span} at a rate of {self.mask_rate} => E[masked] ~= {int(encoded_samples * self.mask_rate * self.mask_span)}"
 
     def _generate_negatives(self, z):
         """Generate negative samples to compare each sequence location against"""
@@ -351,7 +360,12 @@ class _BENDREncoder(nn.Module):
         self.encoder_h = encoder_h
 
     def load(self, filename, strict=True):
-        map_location = None if torch.cuda.is_available() else torch.device("cpu")
+        if torch.cuda.is_available():
+            map_location = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            map_location = torch.device("mps")
+        else:
+            map_location = torch.device("cpu")
         state_dict = torch.load(filename, map_location=map_location)
         self.load_state_dict(state_dict, strict=strict)
 
@@ -381,12 +395,21 @@ class ConvEncoderBENDR(_BENDREncoder):
 
         self.encoder = nn.Sequential()
         for i, (width, downsample) in enumerate(zip(enc_width, enc_downsample)):
-            self.encoder.add_module("Encoder_{}".format(i), nn.Sequential(
-                nn.Conv1d(in_features, encoder_h, width, stride=downsample, padding=width // 2),
-                nn.Dropout2d(dropout),
-                nn.GroupNorm(encoder_h // 2, encoder_h),
-                nn.GELU(),
-            ))
+            self.encoder.add_module(
+                f"Encoder_{i}",
+                nn.Sequential(
+                    nn.Conv1d(
+                        in_features,
+                        encoder_h,
+                        width,
+                        stride=downsample,
+                        padding=width // 2,
+                    ),
+                    nn.Dropout2d(dropout),
+                    nn.GroupNorm(encoder_h // 2, encoder_h),
+                    nn.GELU(),
+                ),
+            )
             in_features = encoder_h
 
         if projection_head:
@@ -405,17 +428,17 @@ class ConvEncoderBENDR(_BENDREncoder):
         for w, s in zip(widths, strides):
             rf = rf if w == 1 else (rf - 1) * s + 2 * (w // 2)
 
-        desc = "Receptive field: {} samples".format(rf)
+        desc = f"Receptive field: {rf} samples"
         if sfreq is not None:
             desc += ", {:.2f} seconds".format(rf / sfreq)
 
         ds_factor = np.prod(self._downsampling)
-        desc += " | Downsampled by {}".format(ds_factor)
+        desc += f" | Downsampled by {ds_factor}"
         if sfreq is not None:
             desc += ", new sfreq: {:.2f} Hz".format(sfreq / ds_factor)
-        desc += " | Overlap of {} samples".format(rf - ds_factor)
+        desc += f" | Overlap of {rf - ds_factor} samples"
         if sequence_len is not None:
-            desc += " | {} encoded samples/trial".format(sequence_len // ds_factor)
+            desc += f" | {sequence_len // ds_factor} encoded samples/trial"
         return desc
 
     def downsampling_factor(self, samples):
@@ -488,6 +511,7 @@ class _Hax(nn.Module):
         return x
 
 
+# BERT-style contextualizer
 class BENDRContextualizer(nn.Module):
 
     def __init__(self, in_features, hidden_feedforward=3076, heads=8, layers=8, dropout=0.15, activation='gelu',
