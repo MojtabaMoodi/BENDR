@@ -11,6 +11,7 @@ Configuratron:
     return_mask: False
 
 use_gpu: False
+test_fraction: 0.5
 
 encoder_weights: /Volumes/Data/encoder.pt
 context_weights: /Volumes/Data/contextualizer.pt
