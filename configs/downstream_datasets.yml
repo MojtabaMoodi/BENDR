@@ -31,13 +31,26 @@ bci_iv_2a:
   data_max: 100
   data_min: -100
   extensions:
-    - .raw.fif
+    # - .raw.fif
+    - .gdf
+  test_subjects:
+    - "A.*T"
+  filename_format: "{subject:3}T"
+  # exclude_people:
+  #   - A04
   picks:
     - eeg
+  events:
+    - 768   # Start of trial
+    - 769   # Cue onset left
+    - 770   # Cue onset right
+    - 771   # Cue onset foot
+    - 772   # Cue onset tongue
   train_params:
     epochs: 15
     batch_size: 60 # This dataset likes batches of ~60 (community is overfitting this)
   lr: 0.00005
+  folds: 5
 
 ern:
   name: "Kaggle ERN Competition"
@@ -104,7 +117,7 @@ sleep-edf:
     - 'Event marker'
   train_params:
     epochs: 40
-    batch_size: 80
+    batch_size: 64
     balance_method: undersample
     validation_interval: 1000
   lr: 0.00005
@@ -134,6 +147,6 @@ erpbci:
     - BENDR
   train_params:
     epochs: 20
-    batch_size: 64
+    batch_size: 80
     balance_method: undersample
   lr: 0.00001
