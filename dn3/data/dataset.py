@@ -23,10 +23,11 @@ class DN3ataset(TorchDataset):
         """
         Base class for that specifies the interface for DN3 datasets.
         """
-        self._transforms = list()
+        self._transforms = []
         self._safe_mode = False
-        self._mutli_proc_start = None
-        self._mutli_proc_end = None
+        # Not used anywhere.
+        # self._mutli_proc_start = None
+        # self._mutli_proc_end = None
 
     def __getitem__(self, item):
         raise NotImplementedError
@@ -382,7 +383,7 @@ class EpochTorchRecording(_Recording):
         else:
             reverse_mapping = {v: k for k, v in event_mapping.items()}
             self.epoch_codes_to_class_labels = {v: i for i, v in enumerate(sorted(reverse_mapping.keys()))}
-        skip_epochs = list() if skip_epochs is None else skip_epochs
+        skip_epochs = [] if skip_epochs is None else skip_epochs
         self._skip_map = [i for i in range(len(self.epochs.events)) if i not in skip_epochs]
         self._skip_map = dict(zip(range(len(self._skip_map)), self._skip_map))
 
