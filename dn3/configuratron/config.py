@@ -399,7 +399,7 @@ class DatasetConfig:
         if self.filename_format is None:
             person = f.parent.name
         else:
-            person = search(self.filename_format, str(f))
+            person = search(self.filename_format, f.stem)
             if person is None:
                 raise DN3ConfigException(
                     f"Could not find person in {f.name} using {self.filename_format}."
@@ -409,9 +409,9 @@ class DatasetConfig:
 
     def _get_session_name(self, f: Path):
         return (
-            search(self.filename_format, str(f))['session']
+            search(self.filename_format, f.stem)['session']
             if self.filename_format is not None
-            and fnmatch(self.filename_format, "*{session*}*")
+            and fnmatch(self.filename_format, "*session*")
             else f.name
         )
 
@@ -596,6 +596,7 @@ class DatasetConfig:
                         if len(ann) > 1:
                             print("More than one annotation found for {}. Falling back to {}".format(patt, ann[0]))
                         raw.set_annotations(read_annotations(ann[0]))
+                # Create epochs
                 epochs = make_epochs_from_raw(raw, self.tmin, tlen, event_ids=self.events, baseline=self.baseline,
                                               decim=self.decimate, filter_bp=self.bandpass, drop_bad=self.drop_bad,
                                               use_annotations=use_annotations, chunk_duration=self.chunk_duration)
