@@ -38,7 +38,16 @@ if __name__ == '__main__':
     import sys
     # If no args are provided (e.g. during VS code debugging), set default args
     if len(sys.argv) == 1:
-        sys.argv += ['linear', '--ds-config', 'configs/downstream.yml']
+        sys.argv += ['BENDR', '--ds-config', 'configs/downstream.yml', '--freeze-encoder', '--results-filename', 'results.xlsx']
+
+
+    # def convert_gelu_to_approximate(module):
+    #     for name, child in module.named_children():
+    #         if isinstance(child, torch.nn.GELU):
+    #             setattr(module, name, torch.nn.GELU(approximate='tanh'))
+    #         else:
+    #             convert_gelu_to_approximate(child)
+
 
     args = parser.parse_args()
     experiment = ExperimentConfig(args.ds_config)
@@ -57,15 +66,31 @@ if __name__ == '__main__':
             else:
                 model = LinearHeadBENDR.from_dataset(training)
 
+            # Setup device and mixed precision training
+            device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+
+            # Move model to device first
+            model = model.to(device)
+
             if not args.random_init:
                 model.load_pretrained_modules(experiment.encoder_weights, experiment.context_weights,
                                               freeze_encoder=args.freeze_encoder)
+                
+            # Convert model to half precision after loading pretrained weights (if not random init)
+            # convert_gelu_to_approximate(model)
+            model = model.half()
+                
             process = StandardClassification(model, metrics=added_metrics)
-            process.set_optimizer(torch.optim.Adam(process.parameters(), ds.lr, weight_decay=0.01))
+            optimizer = torch.optim.Adam(process.parameters(), ds.lr, weight_decay=0.01)
+            process.set_optimizer(optimizer)
 
-            # Fit everything
-            process.fit(training_dataset=training, validation_dataset=validation, warmup_frac=0.1,
-                        retain_best=retain_best, pin_memory=False, **ds.train_params)
+            # Convert training and validation datasets to half precision
+            training = [(x.half(), y) for x, y in training]
+            validation = [(x.half(), y) for x, y in validation]
+
+            process.fit(training_dataset=training, validation_dataset=validation, 
+                        warmup_frac=0.1, retain_best=retain_best, 
+                        pin_memory=False, **ds.train_params)
 
             if args.results_filename:
                 if isinstance(test, Thinker):
@@ -78,7 +103,8 @@ if __name__ == '__main__':
             del process
             objgraph.show_backrefs(model, filename='sample-backref-graph.png')
             del model
-            torch.cuda.synchronize()
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             time.sleep(10)
 
         if args.results_filename:
