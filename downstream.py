@@ -6,6 +6,7 @@ import objgraph
 
 import time
 import utils
+from torch.amp import GradScaler, autocast
 from result_tracking import ThinkerwiseResultTracker
 
 from dn3.configuratron import ExperimentConfig
@@ -81,16 +82,22 @@ if __name__ == '__main__':
             model = model.half()
                 
             process = StandardClassification(model, metrics=added_metrics)
-            optimizer = torch.optim.Adam(process.parameters(), ds.lr, weight_decay=0.01)
+            optimizer = torch.optim.Adam(process.parameters(), ds.lr, eps=1e-4, weight_decay=0.01)
             process.set_optimizer(optimizer)
+
+            scaler = GradScaler()
 
             # Convert training and validation datasets to half precision
             training = [(x.half(), y) for x, y in training]
             validation = [(x.half(), y) for x, y in validation]
 
-            process.fit(training_dataset=training, validation_dataset=validation, 
-                        warmup_frac=0.1, retain_best=retain_best, 
-                        pin_memory=False, **ds.train_params)
+            # process.fit(training_dataset=training, validation_dataset=validation, 
+            #             warmup_frac=0.1, retain_best=retain_best, 
+            #             pin_memory=False, **ds.train_params)
+            with autocast(device_type=device):
+                process.fit(training_dataset=training, validation_dataset=validation, 
+                            warmup_frac=0.1, retain_best=retain_best, 
+                            pin_memory=False, **ds.train_params)
 
             if args.results_filename:
                 if isinstance(test, Thinker):
