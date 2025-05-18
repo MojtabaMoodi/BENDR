@@ -1,5 +1,6 @@
 import mne
 import torch
+import numpy as np
 
 from collections.abc import Iterable
 from torch.utils.data.dataset import random_split
@@ -88,6 +89,33 @@ def min_max_normalize(x: torch.Tensor, low=-1, high=1):
     return (high - low) * x
 
 
+def handle_overlapping_events(events):
+    """
+    Adjust sample indices for overlapping events to treat them as distinct instances.
+
+    Parameters
+    ----------
+    events : np.ndarray
+        The original events array of shape (n_events, 3).
+
+    Returns
+    -------
+    np.ndarray
+        Adjusted events array with unique sample indices for overlapping events.
+    """
+    unique_events = []
+    sample_offset = 1  # Offset to apply to overlapping events
+
+    for i in range(len(events)):
+        sample_idx, sample_value, event_id = events[i]
+        # Check for overlapping events at the same sample index
+        while any((e[0] == sample_idx for e in unique_events)):
+            sample_idx += sample_offset
+        unique_events.append([sample_idx, sample_value, event_id])
+
+    return np.array(unique_events)
+
+
 def make_epochs_from_raw(raw: mne.io.Raw, tmin, tlen, event_ids=None, baseline=None, decim=1, filter_bp=None,
                          drop_bad=False, use_annotations=False, chunk_duration=None):
     sfreq = raw.info['sfreq']
@@ -102,13 +130,32 @@ def make_epochs_from_raw(raw: mne.io.Raw, tmin, tlen, event_ids=None, baseline=N
         if use_annotations:
             events = mne.events_from_annotations(raw, event_id=event_ids, chunk_duration=chunk_duration)[0]
         else:
+            # TODO: Check if this is the right way to do this
             events = mne.find_events(raw)
             events = events[[i for i in range(len(events)) if events[i, -1] in event_ids.keys()], :]
     except ValueError as e:
-        raise DN3ConfigException(*e.args) from e
+        if "No stim channels found" not in str(e):
+            raise DN3ConfigException(*e.args) from e
 
-    return mne.Epochs(raw, events, tmin=tmin, tmax=tmin + tlen - 1 / sfreq, preload=True, decim=decim,
+        # The expected shape of the events is (n_events, 3), where each row is [sample_index, 0, event_id]
+        # events[0] contains the events and events[1] contains the event_id information
+        events = mne.events_from_annotations(raw)
+        events = events[0]
+
+    try:
+        epochs = mne.Epochs(raw, events, tmin=tmin, tmax=tmin + tlen - 1 / sfreq, preload=True, decim=decim,
                       baseline=baseline, reject_by_annotation=drop_bad)
+    except RuntimeError as e:
+        if "Event time samples were not unique" in str(e):
+            # Handle overlapping events by adjusting sample indices
+            events = handle_overlapping_events(events)
+            print("Adjusted overlapping events.")
+            epochs = mne.Epochs(raw, events, tmin=tmin, tmax=tmin + tlen - 1 / sfreq, preload=True, decim=decim,
+                              baseline=baseline, reject_by_annotation=drop_bad)
+        else:
+            raise DN3ConfigException(*e.args) from e
+    
+    return epochs
 
 
 def skip_inds_from_bad_spans(epochs: mne.Epochs, bad_spans: list):
