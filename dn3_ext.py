@@ -89,8 +89,11 @@ class BENDRClassification(Classifier):
         return self.encoder_h
 
     def features_forward(self, *x):
-        # Convert to half precision
-        encoded = self.encoder(x[0].half())
+        if self.args is not None and self.args.mixed_precision:
+            # Convert to half precision
+            encoded = self.encoder(x[0].half())
+        else:
+            encoded = self.encoder(x[0])
 
         if self.trial_embeddings is not None and len(x) > 1:
             embeddings = self.trial_embeddings(x[-1])
@@ -103,7 +106,7 @@ class BENDRClassification(Classifier):
 
     def __init__(self, targets, samples, channels, encoder_h=512, contextualizer_hidden=3076, projection_head=False,
                  new_projection_layers=0, dropout=0., trial_embeddings=None, layer_drop=0, keep_layers=None,
-                 mask_p_t=0.01, mask_p_c=0.005, mask_t_span=0.1, mask_c_span=0.1, multi_gpu=False):
+                 mask_p_t=0.01, mask_p_c=0.005, mask_t_span=0.1, mask_c_span=0.1, multi_gpu=False, args=None):
         self.encoder_h = encoder_h
         self.contextualizer_hidden = contextualizer_hidden
         super().__init__(targets, samples, channels)
@@ -136,6 +139,7 @@ class BENDRClassification(Classifier):
             )
         self.trial_embeddings = nn.Embedding(trial_embeddings, encoder_h, scale_grad_by_freq=True) \
                 if trial_embeddings is not None else trial_embeddings
+        self.args = args
 
     def load_encoder(self, encoder_file, freeze=False, strict=True):
         self.encoder.load(encoder_file, strict=strict)
@@ -163,8 +167,11 @@ class RefinedBENDR(StrideClassifier):
         return self.encoder_h
 
     def features_forward(self, *x):
-        # Convert to half precision
-        encoded = self.encoder(x[0].half())
+        if self.args is not None and self.args.mixed_precision:
+            # Convert to half precision
+            encoded = self.encoder(x[0].half())
+        else:
+            encoded = self.encoder(x[0])
 
         if self.trial_embeddings is not None and len(x) > 1:
             embeddings = self.trial_embeddings(x[-1])
@@ -175,7 +182,8 @@ class RefinedBENDR(StrideClassifier):
 
     def __init__(self, targets, samples, channels, encoder_h=768, contextualizer_hidden=1024, projection_head=True,
                  new_projection_layers=2, dropout=0.1, trial_embeddings=None, stride_width=4,
-                 mask_p_t=0.05, mask_p_c=0.005, mask_c_span=0.1, mask_t_span=0.25):
+                 mask_p_t=0.05, mask_p_c=0.005, mask_c_span=0.1, mask_t_span=0.25, args=None):
+        self.args = args
         self.encoder_h = encoder_h
         self.contextualizer_hidden = contextualizer_hidden
         super().__init__(targets, samples, channels, stride_width=stride_width)

@@ -19,6 +19,7 @@ from dn3_ext import BENDRClassification, LinearHeadBENDR
 
 # Since we are doing a lot of loading, this is nice to suppress some tedious information
 import mne
+import sys
 mne.set_log_level(False)
 
 
@@ -49,19 +50,12 @@ if __name__ == '__main__':
     parser.add_argument('--num-workers', default=4, type=int, help='Number of dataloader workers.')
     parser.add_argument('--results-filename', default=None, help='What to name the spreadsheet produced with all '
                                                                  'final results.')
+    # Add argument to use mixed precision
+    parser.add_argument('--mixed-precision', action='store_true', help='Use mixed (half) precision training.')
     
-    import sys
     # If no args are provided (e.g. during VS code debugging), set default args
     if len(sys.argv) == 1:
-        sys.argv += ['BENDR', '--ds-config', 'configs/downstream.yml', '--freeze-encoder', '--results-filename', 'results.xlsx']
-
-
-    # def convert_gelu_to_approximate(module):
-    #     for name, child in module.named_children():
-    #         if isinstance(child, torch.nn.GELU):
-    #             setattr(module, name, torch.nn.GELU(approximate='tanh'))
-    #         else:
-    #             convert_gelu_to_approximate(child)
+        sys.argv += ['BENDR', '--ds-config', 'configs/downstream.yml', '--freeze-encoder', '--results-filename', 'results.xlsx', '--mixed-precision']
 
 
     args = parser.parse_args()
@@ -77,9 +71,9 @@ if __name__ == '__main__':
                 tqdm.tqdm.write(torch.cuda.memory_summary())
 
             if args.model == utils.MODEL_CHOICES[0]:
-                model = BENDRClassification.from_dataset(training, multi_gpu=args.multi_gpu)
+                model = BENDRClassification.from_dataset(training, multi_gpu=args.multi_gpu, args=args)
             else:
-                model = LinearHeadBENDR.from_dataset(training)
+                model = LinearHeadBENDR.from_dataset(training, args=args)
 
             # Setup device and mixed precision training
             device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
@@ -91,24 +85,26 @@ if __name__ == '__main__':
                 model.load_pretrained_modules(experiment.encoder_weights, experiment.context_weights,
                                               freeze_encoder=args.freeze_encoder)
                 
-            # Convert model to half precision after loading pretrained weights (if not random init)
-            # convert_gelu_to_approximate(model)
-            model = model.half()
+            # If mixed-precision then half the model
+            if args.mixed_precision:
+                # Convert model to half precision
+                model = model.half()
+                scaler = GradScaler()
+
+                # Convert training and validation datasets to half precision
+                training = [(x.half(), y) for x, y in training]
+                validation = [(x.half(), y) for x, y in validation]
                 
             process = StandardClassification(model, metrics=added_metrics)
             optimizer = torch.optim.Adam(process.parameters(), ds.lr, eps=1e-4, weight_decay=0.01)
             process.set_optimizer(optimizer)
 
-            scaler = GradScaler()
-
-            # Convert training and validation datasets to half precision
-            training = [(x.half(), y) for x, y in training]
-            validation = [(x.half(), y) for x, y in validation]
-
-            # process.fit(training_dataset=training, validation_dataset=validation, 
-            #             warmup_frac=0.1, retain_best=retain_best, 
-            #             pin_memory=False, **ds.train_params)
-            with autocast(device_type=device):
+            if args.mixed_precision:
+                with autocast(device_type=device):
+                    process.fit(training_dataset=training, validation_dataset=validation, 
+                                warmup_frac=0.1, retain_best=retain_best, 
+                                pin_memory=False, **ds.train_params)
+            else:
                 process.fit(training_dataset=training, validation_dataset=validation, 
                             warmup_frac=0.1, retain_best=retain_best, 
                             pin_memory=False, **ds.train_params)
