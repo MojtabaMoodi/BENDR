@@ -11,6 +11,7 @@ from dn3.transforms.batch import BatchTransform
 # import tqdm.notebook as tqdm
 import tqdm.auto as tqdm
 
+from torch.amp import autocast
 import torch
 
 import numpy as np
@@ -27,7 +28,7 @@ class BaseProcess(object):
     By default uses the SGD with momentum optimization.
     """
 
-    def __init__(self, lr=0.001, metrics=None, evaluation_only_metrics=None, l2_weight_decay=0.01, cuda=None, **kwargs):
+    def __init__(self, lr=0.001, metrics=None, evaluation_only_metrics=None, l2_weight_decay=0.01, cuda=None, precision='fp32', **kwargs):
         """
         Initialization of the Base Trainable object. Any learning procedure that leverages DN3atasets should subclass
         this base class.
@@ -101,6 +102,7 @@ class BaseProcess(object):
         self.epoch = None
         self.lr = lr
         self.weight_decay = l2_weight_decay
+        self.precision = precision
 
         self._batch_transforms = []
         self._eval_transforms = []
@@ -306,7 +308,13 @@ class BaseProcess(object):
                 Metric scores for the entire
         """
         self.train(False)
-        inputs, outputs = self.predict(dataset, **loader_kwargs)
+        # Use autocast if using fp16 and not on CPU
+        if self.precision == 'fp16' and self.device.type != 'cpu':
+            with autocast(device_type=self.device.type):
+                inputs, outputs = self.predict(dataset, **loader_kwargs)
+        else:
+            with torch.no_grad():
+                inputs, outputs = self.predict(dataset, **loader_kwargs)
         metrics = self.calculate_metrics(inputs, outputs)
         metrics['loss'] = self.calculate_loss(inputs, outputs).item()
         return metrics
@@ -622,13 +630,13 @@ class BaseProcess(object):
 class StandardClassification(BaseProcess):
 
     def __init__(self, classifier: torch.nn.Module, loss_fn=None, cuda=None, metrics=None, learning_rate=0.01,
-                 label_smoothing=None, **kwargs):
+                 label_smoothing=None, precision='fp32', **kwargs):
         if isinstance(metrics, dict):
             metrics.setdefault('Accuracy', self._simple_accuracy)
         else:
             metrics = dict(Accuracy=self._simple_accuracy)
         super(StandardClassification, self).__init__(cuda=cuda, lr=learning_rate, classifier=classifier,
-                                                     metrics=metrics, **kwargs)
+                                                     metrics=metrics, precision=precision, **kwargs)
         if label_smoothing is not None and isinstance(label_smoothing, float) and (0 < label_smoothing < 1):
             self.loss = LabelSmoothedCrossEntropyLoss(self.classifier.targets, smoothing=label_smoothing).\
                 to(self.device)

@@ -24,15 +24,21 @@ class LinearHeadBENDR(Classifier):
         return self.encoder_h * self.pool_length
 
     def features_forward(self, x):
+        # x has the shape of (batch_size, channels, time)
+        if self.args is not None and self.args.precision == 'fp16':
+            # Convert to half precision
+            x = self.encoder(x.half())
+        else:
+            x = self.encoder(x)
         # Forward just the features
-        x = self.encoder(x[0])
         x = self.enc_augment(x)
         x = self.summarizer(x)
         return self.extended_classifier(x)
 
     def __init__(self, targets, samples, channels, encoder_h=512, projection_head=False,
                  enc_do=0.1, feat_do=0.4, pool_length=4, mask_p_t=0.01, mask_p_c=0.005, mask_t_span=0.05,
-                 mask_c_span=0.1, classifier_layers=1):
+                 mask_c_span=0.1, classifier_layers=1, args=None):
+        self.args = args
         if classifier_layers < 1:
             self.pool_length = pool_length
             self.encoder_h = 3 * encoder_h
@@ -89,7 +95,8 @@ class BENDRClassification(Classifier):
         return self.encoder_h
 
     def features_forward(self, *x):
-        if self.args is not None and self.args.mixed_precision:
+        # The method might receive a variable number of inputs, but the first one is always the features.
+        if self.args is not None and self.args.precision == 'fp16':
             # Convert to half precision
             encoded = self.encoder(x[0].half())
         else:
@@ -103,6 +110,9 @@ class BENDRClassification(Classifier):
         # return self.projection_mlp(context[:, :, 0])
         # return nn.functional.adaptive_max_pool1d(context, output_size=1)
         return context[:, :, -1]
+    
+    # def dummy_forward(self, *x):
+    #     return self.features_forward(x)
 
     def __init__(self, targets, samples, channels, encoder_h=512, contextualizer_hidden=3076, projection_head=False,
                  new_projection_layers=0, dropout=0., trial_embeddings=None, layer_drop=0, keep_layers=None,
@@ -124,6 +134,12 @@ class BENDRClassification(Classifier):
         self.encoder = nn.DataParallel(encoder) if multi_gpu else encoder
         self.contextualizer = nn.DataParallel(contextualizer) if multi_gpu else contextualizer
 
+        # Prepare encoder and contextualizer for QAT
+        if args is not None and args.precision == 'int8':
+            import torch.ao.quantization
+            self.encoder.qconfig = torch.ao.quantization.get_default_qat_qconfig('fbgemm')
+            self.contextualizer.qconfig = torch.ao.quantization.get_default_qat_qconfig('fbgemm')
+
         tqdm.tqdm.write(encoder.description(sequence_len=samples))
 
         self.projection_mlp = nn.Sequential()
@@ -137,6 +153,10 @@ class BENDRClassification(Classifier):
                     nn.GELU(),
                 ),
             )
+            # self.projection_mlp.add_module(f"projection-{p}-linear", nn.Linear(encoder_h, encoder_h))
+            # self.projection_mlp.add_module(f"projection-{p}-dropout", nn.Dropout(dropout))
+            # self.projection_mlp.add_module(f"projection-{p}-bn", nn.BatchNorm1d(encoder_h))
+            # self.projection_mlp.add_module(f"projection-{p}-act", nn.GELU())
         self.trial_embeddings = nn.Embedding(trial_embeddings, encoder_h, scale_grad_by_freq=True) \
                 if trial_embeddings is not None else trial_embeddings
         self.args = args
@@ -167,7 +187,7 @@ class RefinedBENDR(StrideClassifier):
         return self.encoder_h
 
     def features_forward(self, *x):
-        if self.args is not None and self.args.mixed_precision:
+        if self.args is not None and self.args.precision == 'fp16':
             # Convert to half precision
             encoded = self.encoder(x[0].half())
         else:
