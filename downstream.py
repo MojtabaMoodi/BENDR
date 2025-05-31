@@ -12,6 +12,13 @@ from torch.ao.nn.qat.modules.conv import (
 import torch.nn as nn
 import tqdm
 import argparse
+import gc
+import os
+
+# Set environment variables for memory optimization
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
 
 import objgraph
 import numpy as np
@@ -107,7 +114,12 @@ if __name__ == '__main__':
         added_metrics, retain_best, _ = utils.get_ds_added_metrics(ds_name, args.metrics_config)
         for fold, (training, validation, test) in enumerate(tqdm.tqdm(utils.get_lmoso_iterator(ds_name, ds))):
 
+            # Force garbage collection before each fold
+            gc.collect()
             if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                tqdm.tqdm.write(f"GPU memory before fold: {torch.cuda.memory_allocated()/1024**3:.2f} GB")
                 tqdm.tqdm.write(torch.cuda.memory_summary())
 
             if args.model == utils.MODEL_CHOICES[0]:
@@ -164,7 +176,7 @@ if __name__ == '__main__':
             optimizer = torch.optim.Adam(process.parameters(), ds.lr, eps=1e-4, weight_decay=0.01)
             process.set_optimizer(optimizer)
             # import pdb; pdb.set_trace()
-            # print(f"Model size: {get_model_size(process):.2f} MB")
+            print(f"Model size: {get_model_size(process):.2f} MB")
 
             if args.precision == 'fp16':
                 with autocast(device_type=device):
@@ -202,11 +214,20 @@ if __name__ == '__main__':
 
             # explicitly garbage collect here, don't want to fit two models in GPU at once
             del process
-            objgraph.show_backrefs(model, filename='sample-backref-graph.png')
+            # Skip objgraph to avoid memory issues and file creation
+            # objgraph.show_backrefs(model, filename='sample-backref-graph.png')
             del model
+            
+            # Clear GPU cache if available
             if torch.cuda.is_available():
+                torch.cuda.empty_cache()
                 torch.cuda.synchronize()
-            time.sleep(10)
+            
+            # Force garbage collection
+            gc.collect()
+            
+            # Reduced sleep time
+            time.sleep(2)
 
         if args.results_filename:
             results.performance_summary(ds_name)

@@ -1,10 +1,10 @@
 Configuratron:
   use_only:
-    - mmidb
+    # - mmidb
     # - bci_iv_2a
     # - ern
     # - erpbci
-    # - sleep-edf
+    - sleep-edf
   preload: True
   sfreq: 256
   deep1010:
@@ -14,4 +14,3 @@ encoder_weights: /Volumes/Data/encoder.pt
 context_weights: /Volumes/Data/contextualizer.pt
 
 datasets: !include configs/downstream_datasets.yml
-

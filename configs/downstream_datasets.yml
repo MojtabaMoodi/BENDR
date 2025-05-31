@@ -116,8 +116,8 @@ sleep-edf:
     - 'Temp rectal' # Comfiest sleep ever
     - 'Event marker'
   train_params:
-    epochs: 40
-    batch_size: 64
+    epochs: 3  # Further reduced from 40 to 3 for memory
+    batch_size: 2  # Further reduced from 64 to 2 for memory
     balance_method: undersample
     validation_interval: 1000
   lr: 0.00005

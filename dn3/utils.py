@@ -117,7 +117,7 @@ def handle_overlapping_events(events):
 
 
 def make_epochs_from_raw(raw: mne.io.Raw, tmin, tlen, event_ids=None, baseline=None, decim=1, filter_bp=None,
-                         drop_bad=False, use_annotations=False, chunk_duration=None):
+                         drop_bad=False, use_annotations=False, chunk_duration=None, preload=False):
     sfreq = raw.info['sfreq']
     if filter_bp is not None:
         if isinstance(filter_bp, (list, tuple)) and len(filter_bp) == 2:
@@ -143,14 +143,14 @@ def make_epochs_from_raw(raw: mne.io.Raw, tmin, tlen, event_ids=None, baseline=N
         events = events[0]
 
     try:
-        epochs = mne.Epochs(raw, events, tmin=tmin, tmax=tmin + tlen - 1 / sfreq, preload=True, decim=decim,
+        epochs = mne.Epochs(raw, events, tmin=tmin, tmax=tmin + tlen - 1 / sfreq, preload=preload, decim=decim,
                       baseline=baseline, reject_by_annotation=drop_bad)
     except RuntimeError as e:
         if "Event time samples were not unique" in str(e):
             # Handle overlapping events by adjusting sample indices
             events = handle_overlapping_events(events)
             print("Adjusted overlapping events.")
-            epochs = mne.Epochs(raw, events, tmin=tmin, tmax=tmin + tlen - 1 / sfreq, preload=True, decim=decim,
+            epochs = mne.Epochs(raw, events, tmin=tmin, tmax=tmin + tlen - 1 / sfreq, preload=preload, decim=decim,
                               baseline=baseline, reject_by_annotation=drop_bad)
         else:
             raise DN3ConfigException(*e.args) from e

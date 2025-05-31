@@ -599,7 +599,8 @@ class DatasetConfig:
                 # Create epochs
                 epochs = make_epochs_from_raw(raw, self.tmin, tlen, event_ids=self.events, baseline=self.baseline,
                                               decim=self.decimate, filter_bp=self.bandpass, drop_bad=self.drop_bad,
-                                              use_annotations=use_annotations, chunk_duration=self.chunk_duration)
+                                              use_annotations=use_annotations, chunk_duration=self.chunk_duration,
+                                              preload=self.preload)
             else:
                 epochs = raw
             event_map = {v: v for v in self.events.values()} if use_annotations else self.events
