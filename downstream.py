@@ -97,7 +97,45 @@ if __name__ == '__main__':
     
     # If no args are provided (e.g. during VS code debugging), set default args
     if len(sys.argv) == 1:
-        sys.argv += ['BENDR', '--ds-config', 'configs/downstream.yml', '--results-filename', 'results.xlsx', '--precision', 'fp32'] # Config No. 1
+        # Gender prediction configurations
+        # These configurations test different combinations of model architectures,
+        # initialization strategies, and precision settings for gender classification
+        
+        # sys.argv += ['BENDR', '--ds-config', 'configs/gender_prediction.yml', '--results-filename', 'gender_results.xlsx', '--precision', 'fp32'] # Gender Config No. 1 
+        # Full BENDR model with pre-trained weights (most powerful configuration)
+        # Uses both encoder and contextualizer with transformer architecture
+        # Expected to provide best performance but slowest training
+        
+        # sys.argv += ['linear', '--ds-config', 'configs/gender_prediction.yml', '--results-filename', 'gender_results.xlsx', '--precision', 'fp32'] # Gender Config No. 2
+        # LinearHead BENDR with pre-trained encoder (balanced configuration)
+        # Uses pre-trained encoder but simpler linear classifier head
+        # Good trade-off between performance and training speed
+        
+        # sys.argv += ['BENDR', '--ds-config', 'configs/gender_prediction.yml', '--random-init', '--results-filename', 'gender_results.xlsx', '--precision', 'fp16'] # Gender Config No. 3
+        # Full BENDR with random initialization (baseline comparison)
+        # Tests whether pre-trained weights provide advantage over random init
+        # Uses fp16 precision for memory efficiency during longer training
+        
+        # sys.argv += ['BENDR', '--ds-config', 'configs/gender_prediction.yml', '--freeze-encoder', '--results-filename', 'gender_results.xlsx', '--precision', 'fp32'] # Gender Config No. 4
+        # Full BENDR with frozen encoder (transfer learning approach)
+        # Only trains contextualizer and classifier, preserving encoder features
+        # Tests whether pre-trained encoder features are sufficient
+        
+        # sys.argv += ['linear', '--ds-config', 'configs/gender_prediction.yml', '--random-init', '--results-filename', 'gender_results.xlsx', '--precision', 'fp16'] # Gender Config No. 5
+        # LinearHead BENDR with random initialization (lightweight baseline)
+        # Simplest model architecture without pre-trained weights
+        # Provides baseline performance comparison for transfer learning benefits
+        
+        sys.argv += ['linear', '--ds-config', 'configs/gender_prediction.yml', '--freeze-encoder', '--results-filename', 'gender_results.xlsx', '--precision', 'fp32'] # Gender Config No. 6
+        # LinearHead BENDR with frozen encoder (DEFAULT - optimal for development)
+        # Fast training with frozen pre-trained encoder features
+        # Best configuration for iterative development and testing
+        # Provides good performance with minimal computational requirements
+        
+        # Original sleep stage configurations (commented out)
+        # These were the original configurations for sleep stage classification
+        # Kept for reference and potential comparison studies
+        # sys.argv += ['BENDR', '--ds-config', 'configs/downstream.yml', '--results-filename', 'results.xlsx', '--precision', 'fp32'] # Config No. 1
         # sys.argv += ['linear', '--ds-config', 'configs/downstream.yml', '--results-filename', 'results.xlsx', '--precision', 'fp32'] # Config No. 2
         # sys.argv += ['BENDR', '--ds-config', 'configs/downstream.yml', '--random-init', '--results-filename', 'results.xlsx', '--precision', 'fp16'] # Config No. 3
         # sys.argv += ['BENDR', '--ds-config', 'configs/downstream.yml', '--freeze-encoder', '--results-filename', 'results.xlsx', '--precision', 'fp32'] # Config No. 4
