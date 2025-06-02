@@ -4,11 +4,12 @@ import yaml
 from dn3.metrics.base import balanced_accuracy, auroc
 from dn3.transforms.instance import To1020
 
-from dn3_ext import LoaderERPBCI, LinearHeadBENDR, BENDRClassification
+from dn3_ext import LoaderERPBCI, LinearHeadBENDR, BENDRClassification, LoaderGenderEDF
 
 
 CUSTOM_LOADERS = dict(
-    erpbci=LoaderERPBCI,
+    erpbci=LoaderERPBCI,  # Existing loader for ERP BCI dataset
+    gender_edf=LoaderGenderEDF,  # New: Custom loader for gender classification from EDF headers
 )
 
 EXTRA_METRICS = dict(bac=balanced_accuracy,
@@ -51,9 +52,25 @@ def get_ds_added_metrics(ds_name, metrics_config):
 
 
 def get_ds(name, ds):
+    """
+    Get dataset with appropriate custom loader based on dataset name.
+    
+    This function maps dataset names to their corresponding custom loaders,
+    enabling specialized data loading for different types of neural data.
+    """
     if name in CUSTOM_LOADERS:
+        # Use registered custom loader for known dataset types
         ds.add_custom_raw_loader(CUSTOM_LOADERS[name]())
+    elif name == 'sleep-edf-gender':
+        # Special handling for gender classification variant of Sleep-EDF
+        # Maps to the gender EDF loader for binary gender prediction
+        ds.add_custom_raw_loader(CUSTOM_LOADERS['gender_edf']())
+    
+    # Create dataset using DN3's auto-construction with custom loader
     dataset = ds.auto_construct_dataset()
+    
+    # Add standard 10-20 electrode mapping transformation
+    # This ensures consistent channel naming across different EEG systems
     dataset.add_transform(To1020())
     return dataset
 
