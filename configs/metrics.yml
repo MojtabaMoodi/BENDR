@@ -1,20 +1,32 @@
+# Evaluation Metrics Configuration
 # List the (additional, Accuracy is always included) metrics used by the downstream datasets and their chance values
 # The *first* metric will be used to generate plots.
 # Specify the chance level of the metric as associated value, if not specified, assumed to be 0.5
 
+# Motor Movement/Imagery (MMI) Database metrics
 mmidb:
-  - bac
+  - bac  # Balanced accuracy for multi-class motor imagery
 
+# BCI Competition IV Dataset 2a metrics  
 bci_iv_2a:
-  - Accuracy: 0.25
+  - Accuracy: 0.25  # 4-class motor imagery (25% chance level)
 
+# Error-Related Negativity (ERN) dataset metrics
 ern:
-  - auroc
+  - auroc  # Area under ROC curve for error detection
 
+# Event-Related Potential BCI dataset metrics
 erpbci:
-  - auroc
+  - auroc  # Area under ROC curve for P300 detection
 
+# Sleep-EDF dataset metrics (original sleep stage classification)
 sleep-edf:
-  - bac: 0.2
+  - bac: 0.2  # Balanced accuracy for 5-class sleep staging (20% chance level)
+
+# Sleep-EDF Gender Classification metrics (NEW)
+# Binary gender prediction from EEG signals extracted from sleep data
+sleep-edf-gender:
+  - bac: 0.5    # Balanced accuracy for binary gender classification (50% chance level)
+  - auroc: 0.5  # Area under ROC curve for gender discrimination (50% chance level)
 
 
