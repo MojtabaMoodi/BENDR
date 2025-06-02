@@ -697,3 +697,211 @@ class LoaderERPBCI:
         events, occurrences = mne.events_from_annotations(run, lambda a: int(target_letter in a) + 1)
         run.add_events(events, stim_channel=cls.STIM_CHANNEL)
         return run
+
+
+class LoaderGenderEDF:
+    """
+    A custom data loader for Sleep-EDF dataset that extracts gender from EDF file headers
+    instead of using sleep stage annotations. This loader creates binary gender labels
+    (0 = female, 1 = male) for classification.
+    
+    This class replaces the original sleep stage classification task with gender prediction
+    by automatically extracting gender information from EDF file metadata and creating
+    artificial events based on the extracted gender labels.
+    
+    Key Features:
+    - Extracts gender from EDF headers using pyedflib
+    - Falls back to hypnogram files if gender not found in PSG files
+    - Creates time-chunked events for person-level classification
+    - Maps: Female → Class 0, Male → Class 1
+    - Handles unknown gender cases gracefully by raising DN3ConfigException
+    """
+    
+    @staticmethod
+    def _extract_gender_from_edf(file_path):
+        """
+        Extract gender information from EDF file header.
+        If gender is not found in the main file (PSG), try the corresponding hypnogram file.
+        
+        This method implements a two-stage gender extraction strategy:
+        1. First, attempt to extract from the main EDF file
+        2. If unsuccessful and file is a PSG file, search corresponding hypnogram
+        
+        Parameters
+        ----------
+        file_path : str or Path
+            Path to the EDF file (either PSG or Hypnogram format)
+            
+        Returns
+        -------
+        gender : str
+            'female', 'male', or 'unknown'
+            
+        Notes
+        -----
+        The method searches for gender information in multiple header fields:
+        - 'sex' and 'gender' fields (standard EDF fields)
+        - 'patientname' field (sometimes contains gender info)
+        Expected values: 'female'/'f' for female, 'male'/'m' for male
+        """
+        import pyedflib  # Import here to handle dependency gracefully
+        from pathlib import Path
+        
+        def _get_gender_from_file(filepath):
+            """Helper to extract gender from a single file"""
+            try:
+                # Open EDF file and read header information
+                f = pyedflib.EdfReader(str(filepath))
+                header = f.getHeader()  # Get all header fields as dictionary
+                f._close()  # Important: close file to prevent resource leaks
+
+                # Look for gender in standard fields first
+                # These are the most reliable sources for gender information
+                for field in ['sex', 'gender']:
+                    if field in header and header[field].strip():
+                        val = header[field].strip().lower()
+                        # Handle common gender representations
+                        if val in ['female', 'f']:
+                            return 'female'
+                        elif val in ['male', 'm']:
+                            return 'male'
+                
+                # Also check patientname field as fallback
+                # Sometimes gender info is embedded in patient name
+                if 'patientname' in header and header['patientname'].strip():
+                    patient_info = header['patientname'].strip().lower()
+                    if 'female' in patient_info or patient_info.startswith('f '):
+                        return 'female'
+                    elif 'male' in patient_info or patient_info.startswith('m '):
+                        return 'male'
+                
+                return 'unknown'  # No gender information found
+            except Exception:
+                # Handle any file reading errors gracefully
+                return 'unknown'
+        
+        # First try the original file (could be PSG or Hypnogram)
+        gender = _get_gender_from_file(file_path)
+        
+        # If no gender found and this is a PSG file, try the corresponding hypnogram file
+        # This is necessary because Sleep-EDF dataset sometimes stores gender info
+        # in hypnogram files rather than PSG files
+        if gender == 'unknown':
+            file_path = Path(file_path)
+            if 'PSG' in file_path.name:
+                # Find corresponding hypnogram file using naming convention
+                # PSG format: SC####E0-PSG.edf
+                # Hypnogram format: SC####XX-Hypnogram.edf
+                subject_id = file_path.name[:6]  # Extract SC#### subject identifier
+                hypnogram_pattern = f"{subject_id}*-Hypnogram.edf"
+                
+                # Look for hypnogram file in the same directory
+                hypnogram_files = list(file_path.parent.glob(hypnogram_pattern))
+                if hypnogram_files:
+                    # Use the first matching hypnogram file
+                    hypnogram_file = hypnogram_files[0]
+                    gender = _get_gender_from_file(hypnogram_file)
+                    if gender != 'unknown':
+                        # Log successful gender extraction from hypnogram
+                        print(f"Found gender '{gender}' for {file_path.name} from {hypnogram_file.name}")
+        
+        return gender
+    
+    @classmethod
+    def __call__(cls, path: Path):
+        """
+        Load EDF file and create gender-based events for classification.
+        
+        This method is the main entry point for the loader. It:
+        1. Loads the EDF file using MNE
+        2. Extracts gender information from file headers
+        3. Creates artificial events based on gender (every 30 seconds)
+        4. Adds events to the raw data for downstream processing
+        
+        Parameters
+        ----------
+        path : Path
+            Path to the EDF file to load
+            
+        Returns
+        -------
+        raw : mne.io.Raw
+            MNE Raw object with gender-based events added
+            
+        Raises
+        ------
+        DN3ConfigException
+            If gender cannot be determined from the file
+            
+        Notes
+        -----
+        Events are created every 30 seconds with codes:
+        - Code 1: Female subjects
+        - Code 2: Male subjects
+        
+        This chunking approach allows for:
+        - Multiple samples per subject (data augmentation)
+        - Consistent with epoching strategies used in sleep stage classification
+        - Maintains temporal structure while enabling person-level classification
+        """
+        import mne
+        
+        # Load the EDF file with all data preloaded for processing
+        raw = mne.io.read_raw_edf(str(path), preload=True)
+        
+        # Extract gender from the file or its corresponding hypnogram
+        gender = cls._extract_gender_from_edf(path)
+        
+        if gender == 'unknown':
+            # Skip files with unknown gender to maintain data quality
+            # This prevents training on ambiguous or unlabeled data
+            raise DN3ConfigException(f"Unknown gender for file {path}")
+        
+        # Create gender-based events for the entire recording
+        # Since this is person-level classification, create events every 30 seconds
+        # to match the typical epoch length used in sleep studies
+        duration = raw.times[-1]  # Total recording duration in seconds
+        sfreq = raw.info['sfreq']  # Sampling frequency
+        chunk_duration = 30  # seconds per chunk (matches sleep epoch standard)
+        
+        events = []
+        # Map gender to event codes for downstream processing
+        # Female = 1, Male = 2 (these will be remapped to 0,1 in config)
+        event_code = 1 if gender == 'female' else 2
+        
+        # Create events every chunk_duration seconds
+        # This creates multiple training samples per subject while maintaining
+        # the person-level nature of the classification task
+        for start_time in range(0, int(duration), chunk_duration):
+            sample_idx = int(start_time * sfreq)  # Convert time to sample index
+            if sample_idx < len(raw.times):
+                # Event format: [sample_index, previous_value, event_id]
+                # previous_value is typically 0 for artificial events
+                events.append([sample_idx, 0, event_code])
+        
+        events = np.array(events)  # Convert to numpy array for MNE compatibility
+        
+        if events.size > 0:
+            # Create a stim channel if none exists, or use MNE's method to add events
+            try:
+                # Try to add events using MNE's automatic method
+                # This will find or create appropriate stimulus channels
+                raw.add_events(events, stim_channel='auto')
+            except ValueError:
+                # If no stim channels exist, create one manually
+                # This ensures compatibility with datasets lacking stimulus channels
+                info = mne.create_info(['STI'], raw.info['sfreq'], ['stim'])
+                stim_data = np.zeros((1, len(raw.times)))
+                
+                # Set stim channel values at event times
+                # This creates a binary stimulus channel indicating gender events
+                for event in events:
+                    sample_idx = event[0]
+                    if sample_idx < len(raw.times):
+                        stim_data[0, sample_idx] = event[2]  # Set event code
+                
+                # Create raw stimulus channel and add to main recording
+                stim_raw = mne.io.RawArray(stim_data, info)
+                raw.add_channels([stim_raw], force_update_info=True)
+        
+        return raw
