@@ -36,19 +36,40 @@ def get_ds_added_metrics(ds_name, metrics_config):
     Given the name of a dataset, and name of metrics config file, returns all additional metrics needed,
     the metric to retain the best validation instance of and the chance-level threshold of this metric.
     """
-    metrics = {}
+    metrics = []  # Initialize as empty list instead of dict
     retain_best = 'Accuracy'
     chance_level = 0.5
 
     with open(metrics_config, 'r') as f:
         conf = yaml.safe_load(f)
         if ds_name in conf:
-            metrics = conf[ds_name]
-            if isinstance(metrics[0], dict):
-                metrics[0], chance_level = list(metrics[0].items())[0]
-            retain_best = metrics[0]
+            metrics_config_list = conf[ds_name]
+            
+            # Process each metric in the configuration
+            processed_metrics = []
+            for i, metric_item in enumerate(metrics_config_list):
+                if isinstance(metric_item, dict):
+                    # Extract metric name and chance level from dictionary
+                    metric_name, metric_chance_level = list(metric_item.items())[0]
+                    processed_metrics.append(metric_name)
+                    
+                    # Use the first metric's chance level and set it as retain_best
+                    if i == 0:
+                        retain_best = metric_name
+                        chance_level = metric_chance_level
+                elif isinstance(metric_item, str):
+                    # Handle simple string metrics
+                    processed_metrics.append(metric_item)
+                    
+                    # Use the first metric as retain_best
+                    if i == 0:
+                        retain_best = metric_item
+            
+            metrics = processed_metrics
 
-    return {m: EXTRA_METRICS[m] for m in metrics if m != 'Accuracy'}, retain_best, chance_level
+    # Return dictionary mapping metric names to their functions
+    # Only include metrics that are not 'Accuracy' and exist in EXTRA_METRICS
+    return {m: EXTRA_METRICS[m] for m in metrics if m != 'Accuracy' and m in EXTRA_METRICS}, retain_best, chance_level
 
 
 def get_ds(name, ds):
