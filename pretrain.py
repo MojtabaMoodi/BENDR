@@ -59,7 +59,11 @@ if __name__ == '__main__':
         encoder.load('checkpoints/encoder_epoch_{}.0.pt'.format(args.resume))
         contextualizer.load('checkpoints/contextualizer_epoch_{}.0.pt'.format(args.resume))
 
-    process = BendingCollegeWav2Vec(encoder, contextualizer, **experiment.bending_college_args)
+    # Extract gradient accumulation steps from training parameters
+    gradient_accumulation_steps = getattr(experiment.training_params, 'gradient_accumulation_steps', 1)
+    process = BendingCollegeWav2Vec(encoder, contextualizer, 
+                                   gradient_accumulation_steps=gradient_accumulation_steps,
+                                   **experiment.bending_college_args)
 
     # Slower learning rate for the encoder
     process.set_optimizer(torch.optim.Adam(process.parameters(), **experiment.optimizer_params))
