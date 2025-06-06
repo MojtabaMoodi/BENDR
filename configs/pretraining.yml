@@ -20,6 +20,7 @@ training_params:
   train_log_interval: 100
   batch_size: 64
   warmup_frac: 0.05
+  gradient_accumulation_steps: 4 # Accumulate gradients over 4 batches
 
 mask_threshold: 0.85
 mask_inflation: 1.

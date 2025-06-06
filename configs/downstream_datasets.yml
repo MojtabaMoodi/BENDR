@@ -19,6 +19,7 @@ mmidb:
   train_params:
     epochs: 7
     batch_size: 4 # I find this dataset likes small batch sizes
+    gradient_accumulation_steps: 4 # Accumulate gradients over 4 batches
   lr: 0.00001
   folds: 5
 
@@ -49,6 +50,7 @@ bci_iv_2a:
   train_params:
     epochs: 15
     batch_size: 60 # This dataset likes batches of ~60 (community is overfitting this)
+    gradient_accumulation_steps: 4 # Accumulate gradients over 4 batches
   lr: 0.00005
   folds: 5
 
@@ -82,6 +84,7 @@ ern:
     epochs: 15
     batch_size: 32
     balance_method: undersample
+    gradient_accumulation_steps: 4 # Accumulate gradients over 4 batches
   lr: 0.00001
   folds: 4
 
@@ -120,6 +123,7 @@ sleep-edf:
     batch_size: 2  # Further reduced from 64 to 2 for memory
     balance_method: undersample
     validation_interval: 1000
+    gradient_accumulation_steps: 4 # Accumulate gradients over 4 batches
   lr: 0.00005
   folds: 10
 
@@ -149,4 +153,5 @@ erpbci:
     epochs: 20
     batch_size: 80
     balance_method: undersample
+    gradient_accumulation_steps: 4 # Accumulate gradients over 4 batches
   lr: 0.00001
