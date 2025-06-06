@@ -28,7 +28,7 @@ class BaseProcess(object):
     By default uses the SGD with momentum optimization.
     """
 
-    def __init__(self, lr=0.001, metrics=None, evaluation_only_metrics=None, l2_weight_decay=0.01, cuda=None, precision='fp32', **kwargs):
+    def __init__(self, lr=0.001, metrics=None, evaluation_only_metrics=None, l2_weight_decay=0.01, cuda=None, precision='fp32', gradient_accumulation_steps=1, **kwargs):
         """
         Initialization of the Base Trainable object. Any learning procedure that leverages DN3atasets should subclass
         this base class.
@@ -53,6 +53,10 @@ class BaseProcess(object):
                           One of the simplest and most common regularizing techniques. If you find a model rapidly
                           reaching high training accuracy (and not validation) increase this. If having trouble fitting
                           the training data, decrease this.
+        gradient_accumulation_steps : int
+                                     Number of mini-batches to accumulate gradients over before performing an optimizer step.
+                                     This effectively increases the batch size by this factor while maintaining memory efficiency.
+                                     Default is 1 (no accumulation).
         kwargs : dict
                  Arguments that will be used by the processes' :py:meth:`BaseProcess.build_network()` method.
         """
@@ -103,7 +107,19 @@ class BaseProcess(object):
         self.lr = lr
         self.weight_decay = l2_weight_decay
         self.precision = precision
-
+        
+        # Gradient accumulation setup
+        self.gradient_accumulation_steps = max(1, int(gradient_accumulation_steps))
+        self.accumulation_counter = 0
+        
+        # Initialize gradients to zero for accumulation
+        self.optimizer.zero_grad()
+        
+        # Log gradient accumulation configuration
+        if self.gradient_accumulation_steps > 1:
+            tqdm.tqdm.write(f"Using gradient accumulation with {self.gradient_accumulation_steps} steps")
+            tqdm.tqdm.write(f"Effective batch size will be {self.gradient_accumulation_steps}x larger")
+        
         self._batch_transforms = []
         self._eval_transforms = []
 
@@ -267,7 +283,8 @@ class BaseProcess(object):
         return metrics
 
     def backward(self, loss):
-        self.optimizer.zero_grad()
+        # Scale loss by accumulation steps for gradient accumulation
+        loss = loss / self.gradient_accumulation_steps
         loss.backward()
 
     def train(self, mode=True):
@@ -279,15 +296,28 @@ class BaseProcess(object):
         self.train(True)
         outputs = self.forward(*inputs)
         loss = self.calculate_loss(inputs, outputs)
+        
+        # Store the original loss value for metrics (before scaling)
+        original_loss = loss.item()
+        
         self.backward(loss)
-
-        self.optimizer.step()
-        if self.scheduler is not None and self.scheduler_after_batch:
-            self.scheduler.step()
+        
+        # Increment accumulation counter
+        self.accumulation_counter += 1
+        
+        # Only step optimizer when we've accumulated enough gradients
+        if self.accumulation_counter >= self.gradient_accumulation_steps:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            self.accumulation_counter = 0
+            
+            # Only step scheduler when we actually update parameters
+            if self.scheduler is not None and self.scheduler_after_batch:
+                self.scheduler.step()
 
         train_metrics = self.calculate_metrics(inputs, outputs)
-        train_metrics.setdefault('loss', loss.item())
-
+        train_metrics.setdefault('loss', original_loss)
+        
         return train_metrics
 
     def evaluate(self, dataset, **loader_kwargs):
@@ -595,6 +625,12 @@ class BaseProcess(object):
                     _m = _validation(epoch, iteration)
                     best_model = self._retain_best(best_model, _m, retain_best)
 
+            # Handle any remaining accumulated gradients at the end of epoch
+            if self.accumulation_counter > 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+                self.accumulation_counter = 0
+                
             # Make epoch summary
             metrics = DataFrame(train_log)
             metrics = metrics[metrics['epoch'] == epoch]
@@ -630,13 +666,14 @@ class BaseProcess(object):
 class StandardClassification(BaseProcess):
 
     def __init__(self, classifier: torch.nn.Module, loss_fn=None, cuda=None, metrics=None, learning_rate=0.01,
-                 label_smoothing=None, precision='fp32', **kwargs):
+                 label_smoothing=None, precision='fp32', gradient_accumulation_steps=1, **kwargs):
         if isinstance(metrics, dict):
             metrics.setdefault('Accuracy', self._simple_accuracy)
         else:
             metrics = dict(Accuracy=self._simple_accuracy)
         super(StandardClassification, self).__init__(cuda=cuda, lr=learning_rate, classifier=classifier,
-                                                     metrics=metrics, precision=precision, **kwargs)
+                                                     metrics=metrics, precision=precision, 
+                                                     gradient_accumulation_steps=gradient_accumulation_steps, **kwargs)
         if label_smoothing is not None and isinstance(label_smoothing, float) and (0 < label_smoothing < 1):
             self.loss = LabelSmoothedCrossEntropyLoss(self.classifier.targets, smoothing=label_smoothing).\
                 to(self.device)
@@ -860,7 +897,7 @@ class BendingCollegeWav2Vec(BaseProcess):
     def __init__(self, encoder, context_fn, mask_rate=0.1, mask_span=6, learning_rate=0.01, temp=0.5,
                  permuted_encodings=False, permuted_contexts=False, enc_feat_l2=0.001, multi_gpu=False,
                  l2_weight_decay=1e-4, unmasked_negative_frac=0.25, encoder_grad_frac=1.0,
-                 num_negatives=100, **kwargs):
+                 num_negatives=100, gradient_accumulation_steps=1, **kwargs):
         self.predict_length = mask_span
         self._enc_downsample = encoder.downsampling_factor
         if multi_gpu:
@@ -872,6 +909,7 @@ class BendingCollegeWav2Vec(BaseProcess):
         super(BendingCollegeWav2Vec, self).__init__(encoder=encoder, context_fn=context_fn,
                                                     loss_fn=torch.nn.CrossEntropyLoss(), lr=learning_rate,
                                                     l2_weight_decay=l2_weight_decay,
+                                                    gradient_accumulation_steps=gradient_accumulation_steps,
                                                     metrics=dict(Accuracy=self._contrastive_accuracy,
                                                                  Mask_pct=self._mask_pct), **kwargs)
         self.best_metric = None
