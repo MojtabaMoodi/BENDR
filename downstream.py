@@ -15,10 +15,11 @@ import argparse
 import gc
 import os
 
-# Set environment variables for memory optimization
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+# Set environment variables for memory optimization - more aggressive settings
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:64'  # Reduced from 128 for better memory management
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Disable tokenizer parallelism to save memory
 
 import objgraph
 import numpy as np
@@ -76,6 +77,25 @@ def apply_qconfig_recursive(model, qconfig, qat_mapping):
             module.qconfig = None  # Not in mapping
         apply_qconfig_recursive(module, qconfig, qat_mapping)
 
+def cleanup_memory():
+    """Aggressive memory cleanup function"""
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
+def print_memory_usage():
+    """Print current memory usage"""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / (1024**3)
+        reserved = torch.cuda.memory_reserved() / (1024**3)
+        tqdm.tqdm.write(f"GPU Memory - Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB")
+    
+    # Also print system memory usage
+    import psutil
+    mem = psutil.virtual_memory()
+    tqdm.tqdm.write(f"System Memory - Used: {mem.used / (1024**3):.2f}GB, Available: {mem.available / (1024**3):.2f}GB")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Fine-tunes BENDER models.")
@@ -89,7 +109,7 @@ if __name__ == '__main__':
                                                                       "Will only be done if not randomly initialized.")
     parser.add_argument('--random-init', action='store_true', help='Randomly initialized BENDR for comparison.')
     parser.add_argument('--multi-gpu', action='store_true', help='Distribute BENDR over multiple GPUs')
-    parser.add_argument('--num-workers', default=4, type=int, help='Number of dataloader workers.')
+    parser.add_argument('--num-workers', default=1, type=int, help='Number of dataloader workers (reduced for memory).')
     parser.add_argument('--results-filename', default=None, help='What to name the spreadsheet produced with all '
                                                                  'final results.')
     # Add argument to use different precisions
@@ -148,17 +168,23 @@ if __name__ == '__main__':
     if args.results_filename:
         results = ThinkerwiseResultTracker()
 
+    # Print initial memory usage
+    print_memory_usage()
+
     for ds_name, ds in tqdm.tqdm(experiment.datasets.items(), total=len(experiment.datasets.items()), desc='Datasets'):
         added_metrics, retain_best, _ = utils.get_ds_added_metrics(ds_name, args.metrics_config)
+        
+        # Clean up memory before starting dataset processing
+        cleanup_memory()
+        print_memory_usage()
+        
         for fold, (training, validation, test) in enumerate(tqdm.tqdm(utils.get_lmoso_iterator(ds_name, ds))):
 
-            # Force garbage collection before each fold
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-                tqdm.tqdm.write(f"GPU memory before fold: {torch.cuda.memory_allocated()/1024**3:.2f} GB")
-                tqdm.tqdm.write(torch.cuda.memory_summary())
+            tqdm.tqdm.write(f"Starting fold {fold+1}")
+            
+            # Force aggressive garbage collection before each fold
+            cleanup_memory()
+            print_memory_usage()
 
             if args.model == utils.MODEL_CHOICES[0]:
                 model = BENDRClassification.from_dataset(training, multi_gpu=args.multi_gpu, args=args)
@@ -210,7 +236,10 @@ if __name__ == '__main__':
                 print("=============================> qat_mapping", qat_mapping)
                 print("=============================> model.encoder", model.encoder)
 
-            process = StandardClassification(model, metrics=added_metrics, precision=args.precision)
+            # Extract gradient accumulation steps from training parameters
+            gradient_accumulation_steps = getattr(ds.train_params, 'gradient_accumulation_steps', 1)
+            process = StandardClassification(model, metrics=added_metrics, precision=args.precision, 
+                                           gradient_accumulation_steps=gradient_accumulation_steps)
             optimizer = torch.optim.Adam(process.parameters(), ds.lr, eps=1e-4, weight_decay=0.01)
             process.set_optimizer(optimizer)
             # import pdb; pdb.set_trace()
@@ -256,17 +285,17 @@ if __name__ == '__main__':
             # objgraph.show_backrefs(model, filename='sample-backref-graph.png')
             del model
             
-            # Clear GPU cache if available
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-            
-            # Force garbage collection
-            gc.collect()
+            # Aggressive memory cleanup after each fold
+            cleanup_memory()
+            print_memory_usage()
             
             # Reduced sleep time
-            time.sleep(2)
+            time.sleep(1)  # Reduced from 2 seconds
 
         if args.results_filename:
             results.performance_summary(ds_name)
             results.to_spreadsheet(args.results_filename)
+            
+        # Final cleanup after dataset processing
+        cleanup_memory()
+        print_memory_usage()
