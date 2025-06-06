@@ -47,15 +47,16 @@ sleep-edf-gender:
     - 'Temp rectal'     # Body temperature (not relevant for EEG-based gender prediction)
     - 'Event marker'    # Annotation markers (not neural data)
     
-  # Training hyperparameters optimized for gender classification
+  # Training hyperparameters optimized for gender classification with memory constraints
   train_params:
-    epochs: 10  # Number of training epochs (increased for gender classification convergence)
-    batch_size: 8  # Batch size (increased since gender is person-level, more stable)
+    epochs: 2  # Very reduced number of training epochs for initial testing
+    batch_size: 2  # Very small batch size to minimize memory usage
     balance_method: undersample  # Handle class imbalance by undersampling majority class
-    validation_interval: 1000  # Validate every 1000 training steps
+    validation_interval: 100  # Validate every 100 training steps (very frequent)
+    gradient_accumulation_steps: 1  # No gradient accumulation for minimal memory usage
     
   lr: 0.00005  # Learning rate (conservative for fine-tuning pre-trained models)
-  folds: 10    # Number of cross-validation folds for robust evaluation
+  folds: 2    # Very reduced number of cross-validation folds for initial testing
   
   # Number of target classes (binary: female/male)
   targets: 2   # Binary classification: 0 = female, 1 = male 

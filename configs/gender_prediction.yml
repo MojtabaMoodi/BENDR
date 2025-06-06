@@ -5,7 +5,7 @@
 Configuratron:
   use_only:
     - sleep-edf-gender  # Use only the gender classification variant of Sleep-EDF
-  preload: True  # Preload data into memory for faster processing
+  preload: False  # Don't preload data to avoid memory issues - load on demand instead
   sfreq: 256  # Resample all data to 256 Hz for consistency across subjects
   deep1010:
     return_mask: False  # Don't return channel masking information (not needed for classification)
