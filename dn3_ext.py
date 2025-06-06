@@ -846,8 +846,8 @@ class LoaderGenderEDF:
         """
         import mne
         
-        # Load the EDF file with all data preloaded for processing
-        raw = mne.io.read_raw_edf(str(path), preload=True)
+        # Load the EDF file without preloading to save memory initially
+        raw = mne.io.read_raw_edf(str(path), preload=False)
         
         # Extract gender from the file or its corresponding hypnogram
         gender = cls._extract_gender_from_edf(path)
@@ -882,6 +882,10 @@ class LoaderGenderEDF:
         events = np.array(events)  # Convert to numpy array for MNE compatibility
         
         if events.size > 0:
+            # Only preload data when we need to add events
+            # This reduces memory usage during the initial loading phase
+            raw.load_data()
+            
             # Create a stim channel if none exists, or use MNE's method to add events
             try:
                 # Try to add events using MNE's automatic method
