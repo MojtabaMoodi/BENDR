@@ -126,7 +126,8 @@ if __name__ == '__main__':
         # Simplest model architecture without pre-trained weights
         # Provides baseline performance comparison for transfer learning benefits
         
-        sys.argv += ['linear', '--ds-config', 'configs/gender_prediction.yml', '--freeze-encoder', '--results-filename', 'gender_results.xlsx', '--precision', 'fp32'] # Gender Config No. 6
+        # sys.argv += ['linear', '--ds-config', 'configs/gender_prediction.yml', '--freeze-encoder', '--results-filename', 'gender_results.xlsx', '--precision', 'fp32'] # Gender Config No. 6
+        sys.argv += ['linear', '--ds-config', 'configs/gender_prediction.yml', '--results-filename', 'gender_results.xlsx', '--precision', 'fp32'] # Gender Config No. 2
         # LinearHead BENDR with frozen encoder (DEFAULT - optimal for development)
         # Fast training with frozen pre-trained encoder features
         # Best configuration for iterative development and testing
