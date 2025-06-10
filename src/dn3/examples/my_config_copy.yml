@@ -1,0 +1,37 @@
+Configuratron:
+  use_only:
+    # - mmidb
+    - bci_iv_2a
+    # - ern
+    # - erpbci
+    # - sleep-edf
+  preload: True
+  sfreq: 256
+  deep1010:
+    return_mask: False
+
+use_gpu: False
+
+encoder_weights: /Volumes/Data/encoder.pt
+context_weights: /Volumes/Data/contextualizer.pt
+
+datasets:
+  bci_iv_2a:
+    name: "BCI Competition IV 2a"
+    toplevel: /Volumes/Data/BCIC
+    tmin: -2
+    tlen: 6
+    data_max: 100
+    data_min: -100
+    extensions:
+      # - .raw.fif
+      - .gdf
+    test_subjects:
+      - "A*T"
+    filename_format: "A{subject:2}{session:1}"
+    picks:
+      - eeg
+    train_params:
+      epochs: 15
+      batch_size: 60 # This dataset likes batches of ~60 (community is overfitting this)
+    lr: 0.00005

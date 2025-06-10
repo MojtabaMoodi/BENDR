@@ -1,0 +1,61 @@
+# Gender Classification Dataset Configuration
+# Configuration for Sleep-EDF dataset adapted for binary gender prediction
+# This replaces sleep stage labels with gender labels extracted from EDF headers
+
+sleep-edf-gender:
+  name: "Sleep EDF Gender Classification"  # Human-readable dataset name
+  toplevel: /data/mmoodi/SSC/sleep-cassette/  # Root directory containing EDF files
+  tmin: 0  # Start time for epochs (0 = beginning of each 30s chunk)
+  tlen: 30  # Length of each epoch in seconds (matches sleep study standard)
+  
+  # Data normalization bounds (derived from Sleep-EDF dataset statistics)
+  data_max: 4460.6  # Maximum expected EEG amplitude (μV)
+  data_min: -4465.7  # Minimum expected EEG amplitude (μV)
+  
+  extensions:
+    - .edf  # Process only EDF (European Data Format) files
+    
+  chunk_duration: 30  # Create 30-second chunks for person-level classification
+  
+  # File exclusion patterns
+  # Only include PSG files (actual EEG data), exclude hypnogram files (annotations)
+  exclude_sessions:
+    - "*Hypnogram*"  # Exclude all annotation files containing sleep stage labels
+    
+  # Gender events mapping - binary classification
+  # Our custom loader will create events with codes 1 (female) and 2 (male)
+  # These are then mapped to class indices for neural network training
+  events:
+    1: 0  # Map female (code 1) to class 0 for binary classification
+    2: 1  # Map male (code 2) to class 1 for binary classification
+    
+  # Channel name standardization
+  # Sleep-EDF uses non-standard channel names that need mapping to 10-20 system
+  rename_channels:
+    FPZ: 'EEG Fpz-Cz'  # Frontal pole to central reference
+    PZ: 'EEG Pz-Oz'    # Parietal to occipital reference  
+    HEOGL: "EOG horizontal"  # Horizontal electrooculogram
+    
+  # Channel selection for EEG analysis
+  picks:
+    - eeg  # Use only EEG channels (exclude EOG, EMG, other physiological signals)
+    
+  # Channels to exclude from analysis
+  exclude_channels:
+    - "Resp oro-nasal"  # Respiratory signal (not relevant for gender prediction)
+    - 'EMG submental'   # Chin muscle activity (sleep-related, not gender-specific)
+    - 'Temp rectal'     # Body temperature (not relevant for EEG-based gender prediction)
+    - 'Event marker'    # Annotation markers (not neural data)
+    
+  # Training hyperparameters optimized for gender classification
+  train_params:
+    epochs: 10  # Number of training epochs (increased for gender classification convergence)
+    batch_size: 8  # Batch size (increased since gender is person-level, more stable)
+    balance_method: undersample  # Handle class imbalance by undersampling majority class
+    validation_interval: 1000  # Validate every 1000 training steps
+    
+  lr: 0.00005  # Learning rate (conservative for fine-tuning pre-trained models)
+  folds: 10    # Number of cross-validation folds for robust evaluation
+  
+  # Number of target classes (binary: female/male)
+  targets: 2   # Binary classification: 0 = female, 1 = male 
