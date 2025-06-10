@@ -5,15 +5,15 @@
 Configuratron:
   use_only:
     - sleep-edf-gender  # Use only the gender classification variant of Sleep-EDF
-  preload: True  # Preload data into memory for faster processing
+  preload: False  # Disable preloading for faster startup and lower memory usage
   sfreq: 256  # Resample all data to 256 Hz for consistency across subjects
   deep1010:
     return_mask: False  # Don't return channel masking information (not needed for classification)
 
 # Pre-trained model weights from the original BENDR sleep stage classification
 # These weights provide strong EEG feature representations for transfer learning
-encoder_weights: /Volumes/Data/encoder.pt  # Pre-trained convolutional encoder weights
-context_weights: /Volumes/Data/contextualizer.pt  # Pre-trained transformer contextualizer weights
+encoder_weights: /data/mmoodi/encoder.pt  # Pre-trained convolutional encoder weights
+context_weights: /data/mmoodi/contextualizer.pt  # Pre-trained transformer contextualizer weights
 
 # Include dataset-specific configuration for gender classification
 datasets: !include configs/gender_datasets.yml 

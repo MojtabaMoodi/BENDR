@@ -4,9 +4,13 @@
 
 sleep-edf-gender:
   name: "Sleep EDF Gender Classification"  # Human-readable dataset name
-  toplevel: /Volumes/Data/SSC/sleep-cassette/  # Root directory containing EDF files
+  toplevel: /data/mmoodi/SSC/sleep-cassette/  # Root directory containing EDF files
   tmin: 0  # Start time for epochs (0 = beginning of each 30s chunk)
   tlen: 30  # Length of each epoch in seconds (matches sleep study standard)
+  
+  # Filename format for extracting subject IDs from Sleep-EDF files
+  # Format: SC4001E0-PSG.edf -> subject: SC4001, session: E0-PSG
+  filename_format: "{subject}E{session}-PSG"
   
   # Data normalization bounds (derived from Sleep-EDF dataset statistics)
   data_max: 4460.6  # Maximum expected EEG amplitude (μV)
@@ -28,6 +32,9 @@ sleep-edf-gender:
   events:
     1: 0  # Map female (code 1) to class 0 for binary classification
     2: 1  # Map male (code 2) to class 1 for binary classification
+    
+  # Force DN3 to use our exact event mapping rather than auto-remapping
+  force_label: true
     
   # Channel name standardization
   # Sleep-EDF uses non-standard channel names that need mapping to 10-20 system
