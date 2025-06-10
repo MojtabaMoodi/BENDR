@@ -89,7 +89,7 @@ sleep-edf:
   name: "Sleep EDFx Cassette"
   filename_format: "SC4{subject:2}{session:1}"
   annotation_format: "SC4{subject:2}{session:1}*Hypnogram*"
-  toplevel: /Volumes/Data/SSC/sleep-cassette/
+  toplevel: /data/mmoodi/SSC/sleep-cassette/
   tmin: 0
   tlen: 30
   data_max: 4460.6

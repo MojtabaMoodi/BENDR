@@ -10,7 +10,7 @@ Configuratron:
   deep1010:
     return_mask: False
 
-encoder_weights: /Volumes/Data/encoder.pt
-context_weights: /Volumes/Data/contextualizer.pt
+encoder_weights: /data/mmoodi/encoder.pt
+context_weights: /data/mmoodi/contextualizer.pt
 
 datasets: !include configs/downstream_datasets.yml
