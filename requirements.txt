@@ -1,8 +1,8 @@
 # Core Dependencies for BENDR Framework
 torch>=1.5.0        # PyTorch deep learning framework
 mne>=0.20.3         # MNE-Python for neurophysiological data processing
-pyyaml==5.3.1       # YAML configuration file parsing
-pyyaml-include==1.2 # YAML include functionality for modular configs
+pyyaml       # YAML configuration file parsing
+pyyaml-include # YAML include functionality for modular configs
 numpy>=1.17.4       # Numerical computing with arrays
 pandas>=1.0.0       # Data manipulation and analysis
 tqdm>=4.46.0        # Progress bars for long-running operations

@@ -130,7 +130,7 @@ Results are saved in Excel format with the following metrics:
 
 ## Dataset Requirements
 
-- **Sleep-EDF Dataset**: Must be available at `/Volumes/Data/SSC/sleep-cassette/`
+- **Sleep-EDF Dataset**: Must be available at `/data/mmoodi/SSC/sleep-cassette/`
 - **EDF Files**: Must contain gender information in headers
 - **Pre-trained Weights**: BENDR encoder and contextualizer weights at:
   - `/Volumes/Data/encoder.pt`
