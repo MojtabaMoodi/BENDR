@@ -1,6 +1,6 @@
 import mne
 import yaml
-from yamlinclude import YamlIncludeConstructor
+import yaml_include
 import tqdm
 import warnings
 import mne.io as loader
@@ -40,7 +40,8 @@ _SUPPORTED_EXTENSIONS = {
     # '.csv': loader.read_raw_csv,
 }
 
-YamlIncludeConstructor.add_to_loader_class(loader_class=yaml.FullLoader)
+
+yaml.add_constructor("!include", yaml_include.Constructor(), yaml.FullLoader)
 
 # Since we are doing a lot of loading in the configuratron, this is nice to suppress some tedious information.
 # Keep in mind, removing this might help debug data loading problems, `mne.set_log_level(True)` to counteract.

@@ -38,7 +38,7 @@ def check_file_for_gender(file_path):
         return False
 
 def main():
-    data_dir = Path('/Volumes/Data/SSC/sleep-cassette/')
+    data_dir = Path('/data/mmoodi/SSC/sleep-cassette/')
     
     print("=== Checking PSG Files for Gender Info ===")
     psg_files = list(data_dir.glob('*PSG.edf'))[:5]
