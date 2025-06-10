@@ -214,4 +214,7 @@ fabric.properties
 .idea/caches/build_file_checksums.ser
 
 # Ignore vscode workspace file
-.vscode/*
+.vscode/*# Training logs and results (generated files)
+*.xlsx
+*training_log.txt
+my_requirements.txt
